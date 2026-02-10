@@ -9,6 +9,7 @@
     "package": "electron-forge package",
     "make": "electron-forge make",
     "lint": "tsc --noEmit",
+    "dmg": "electron-forge package && bash scripts/create-dmg.sh",
     "postinstall": "bash scripts/download-llama.sh"
   },
   "keywords": [
