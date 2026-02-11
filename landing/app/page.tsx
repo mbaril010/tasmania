@@ -3,42 +3,42 @@ import Image from "next/image";
 function Nav() {
   return (
     <nav className="flex items-center justify-between px-5 sm:px-8 py-5 sm:py-6 max-w-7xl mx-auto">
-      <div className="flex items-center gap-2.5">
-        <Image src="/logo.png" alt="Tasmania" width={32} height={32} className="rounded-lg" />
-        <span className="text-lg font-bold tracking-tight text-gray-900">Tasmania</span>
+      <div className="flex items-center gap-3">
+        <Image src="/logo.png" alt="Tasmania" width={44} height={44} className="rounded-xl" />
+        <span className="text-2xl font-bold tracking-tight text-gray-900">Tasmania</span>
       </div>
       <div className="hidden md:flex items-center gap-8 text-sm text-gray-500 font-medium">
         <a href="#features" className="hover:text-gray-900 transition-colors">Features</a>
         <a href="#steps" className="hover:text-gray-900 transition-colors">How it works</a>
         <a href="https://github.com/mbaril010/tasmania" className="hover:text-gray-900 transition-colors">GitHub</a>
       </div>
-      <button className="bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium px-4 sm:px-5 py-2.5 rounded-full transition-colors">
+      <a href="https://github.com/mbaril010/tasmania/releases/download/v0.0.1/Tasmania-0.0.1-arm64.dmg" className="bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium px-4 sm:px-5 py-2.5 rounded-full transition-colors">
         Download
-      </button>
+      </a>
     </nav>
   );
 }
 
 function Hero() {
   return (
-    <section className="pt-12 sm:pt-24 md:pt-36 pb-12 sm:pb-20 px-5 sm:px-6">
+    <section className="pt-2 sm:pt-6 md:pt-10 pb-12 sm:pb-20 px-5 sm:px-6">
       <div className="max-w-5xl mx-auto text-center">
-        <div className="flex justify-center mb-6 sm:mb-8">
-          <Image src="/logo-large.png" alt="Tasmania" width={80} height={80} className="rounded-2xl shadow-lg sm:w-[96px] sm:h-[96px]" />
+        <div className="flex justify-center mb-8 sm:mb-10">
+          <Image src="/logo-large.png" alt="Tasmania" width={140} height={140} className="rounded-3xl shadow-xl sm:w-[180px] sm:h-[180px]" />
         </div>
         <h1 className="text-5xl sm:text-6xl md:text-8xl lg:text-9xl font-bold text-gray-900 leading-[0.95] tracking-tight">
           Your AI.
           <br />
           Your machine.
         </h1>
-        <p className="mt-6 sm:mt-10 text-base sm:text-lg md:text-xl text-gray-400 max-w-xl mx-auto leading-relaxed">
-          Search models on Hugging Face, download them in one click,
-          and run them locally. No cloud. No complexity. No compromise.
+        <p className="mt-6 sm:mt-10 text-base sm:text-lg md:text-xl text-gray-400 max-w-4xl mx-auto leading-relaxed">
+          Search models on Hugging Face, download them in one click, and run them locally.<br />
+          No cloud. No complexity. No compromise.
         </p>
         <div className="mt-8 sm:mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
-          <button className="w-full sm:w-auto bg-gray-900 hover:bg-gray-800 text-white font-semibold px-8 py-4 rounded-full text-lg transition-colors">
+          <a href="https://github.com/mbaril010/tasmania/releases/download/v0.0.1/Tasmania-0.0.1-arm64.dmg" className="w-full sm:w-auto bg-gray-900 hover:bg-gray-800 text-white font-semibold px-8 py-4 rounded-full text-lg transition-colors inline-block text-center">
             Download for free
-          </button>
+          </a>
           <a href="#features" className="text-gray-400 hover:text-gray-600 font-medium transition-colors">
             Learn more
           </a>
@@ -202,9 +202,9 @@ function CTA() {
           Take AI offline.
         </h2>
         <p className="text-base sm:text-lg text-gray-400 mb-8 sm:mb-10">Free. Open source. MIT licensed.</p>
-        <button className="w-full sm:w-auto bg-gray-900 hover:bg-gray-800 text-white font-semibold px-8 py-4 rounded-full text-lg transition-colors">
+        <a href="https://github.com/mbaril010/tasmania/releases/download/v0.0.1/Tasmania-0.0.1-arm64.dmg" className="w-full sm:w-auto bg-gray-900 hover:bg-gray-800 text-white font-semibold px-8 py-4 rounded-full text-lg transition-colors inline-block text-center">
           Download Tasmania
-        </button>
+        </a>
       </div>
     </section>
   );
