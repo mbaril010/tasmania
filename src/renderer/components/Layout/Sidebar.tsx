@@ -12,6 +12,7 @@ const navItems: NavItem[] = [
   { id: 'home', label: 'Dashboard', icon: '⌂' },
   { id: 'models', label: 'Models', icon: '◎' },
   { id: 'backends', label: 'Backends', icon: '⚡' },
+  { id: 'api', label: 'API', icon: '⬡' },
   { id: 'settings', label: 'Settings', icon: '⚙' },
 ];
 

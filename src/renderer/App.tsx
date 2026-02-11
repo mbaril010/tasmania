@@ -5,6 +5,7 @@ import HomeScreen from './screens/HomeScreen';
 import ModelsScreen from './screens/ModelsScreen';
 import BackendsScreen from './screens/BackendsScreen';
 import SettingsScreen from './screens/SettingsScreen';
+import ApiScreen from './screens/ApiScreen';
 import type { TasmaniaAPI } from '../main/preload';
 
 // Global type declaration for the preload bridge
@@ -18,6 +19,7 @@ const screens: Record<string, React.FC> = {
   home: HomeScreen,
   models: ModelsScreen,
   backends: BackendsScreen,
+  api: ApiScreen,
   settings: SettingsScreen,
 };
 

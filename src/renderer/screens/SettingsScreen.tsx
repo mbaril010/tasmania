@@ -5,32 +5,12 @@ import Button from '../components/Common/Button';
 
 const SettingsScreen: React.FC = () => {
   const { settings, updateSettings, systemInfo, updateInfo, checkForUpdates } = useApp();
-  const [copied, setCopied] = useState(false);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<string | null>(null);
 
   if (!settings) {
     return <div style={{ padding: '2rem', color: '#666' }}>Loading settings...</div>;
   }
-
-  const mcpConfig = JSON.stringify(
-    {
-      mcpServers: {
-        tasmania: {
-          command: 'node',
-          args: [getMcpServerPath()],
-        },
-      },
-    },
-    null,
-    2
-  );
-
-  const handleCopyMcp = () => {
-    navigator.clipboard.writeText(mcpConfig);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const handleSelectDir = async () => {
     const dir = await window.tasmania.selectDirectory();
@@ -210,31 +190,6 @@ const SettingsScreen: React.FC = () => {
         </div>
       </Card>
 
-      {/* MCP Integration */}
-      <Card title="Claude Code MCP Integration" style={{ marginBottom: '1rem' }}>
-        <div style={{ fontSize: '0.85rem', color: '#aaa', marginBottom: 12, lineHeight: 1.5 }}>
-          Add the following to your Claude Code MCP configuration to connect to Tasmania:
-        </div>
-        <pre
-          style={{
-            background: '#0f0f0f',
-            padding: '14px',
-            borderRadius: 8,
-            fontSize: '0.8rem',
-            color: '#e0e0e0',
-            fontFamily: 'monospace',
-            overflow: 'auto',
-            lineHeight: 1.5,
-            marginBottom: 8,
-          }}
-        >
-          {mcpConfig}
-        </pre>
-        <Button variant="secondary" size="sm" onClick={handleCopyMcp}>
-          {copied ? 'Copied!' : 'Copy to clipboard'}
-        </Button>
-      </Card>
-
       {/* System Info */}
       {systemInfo && (
         <Card title="System Information">
@@ -248,14 +203,6 @@ const SettingsScreen: React.FC = () => {
     </div>
   );
 };
-
-function getMcpServerPath(): string {
-  // In production, this will be inside the app bundle
-  if (process.env.NODE_ENV === 'development') {
-    return '/path/to/tasmania/dist-mcp/server.js';
-  }
-  return '/Applications/Tasmania.app/Contents/Resources/dist-mcp/server.js';
-}
 
 const labelStyle: React.CSSProperties = {
   display: 'block',

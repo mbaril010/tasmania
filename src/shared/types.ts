@@ -100,6 +100,13 @@ export interface UpdateCheckResult {
   error: string | null;
 }
 
+// ── Chat Types ──
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 // ── App State ──
 
 export interface AppState {

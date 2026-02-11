@@ -102,6 +102,27 @@ const api = {
   selectDirectory: (): Promise<string | null> =>
     ipcRenderer.invoke(IPC.SYSTEM_SELECT_DIR),
 
+  // ── Terminal ──
+  terminal: {
+    create: (cols: number, rows: number, customEnv?: Record<string, string>): Promise<void> =>
+      ipcRenderer.invoke(IPC.TERMINAL_CREATE, cols, rows, customEnv),
+
+    write: (data: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.TERMINAL_WRITE, data),
+
+    resize: (cols: number, rows: number): Promise<void> =>
+      ipcRenderer.invoke(IPC.TERMINAL_RESIZE, cols, rows),
+
+    kill: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.TERMINAL_KILL),
+
+    onData: (callback: (data: string) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: string) => callback(data);
+      ipcRenderer.on(IPC.TERMINAL_DATA, handler);
+      return () => ipcRenderer.removeListener(IPC.TERMINAL_DATA, handler);
+    },
+  },
+
   // ── Utility ──
   ping: (): Promise<string> => ipcRenderer.invoke('ping'),
 };

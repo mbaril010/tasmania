@@ -4,6 +4,7 @@ import { registerBackendHandlers, shutdownBackends } from './ipc/backend-handler
 import { registerModelHandlers } from './ipc/model-handlers';
 import { registerSystemHandlers } from './ipc/system-handlers';
 import { registerUpdateHandlers, checkForUpdatesOnLaunch } from './ipc/update-handlers';
+import { registerTerminalHandlers, shutdownTerminal } from './ipc/terminal-handlers';
 import { startControlApi, stopControlApi } from './mcp/control-api';
 import { getSettings } from './store/AppStore';
 
@@ -49,6 +50,7 @@ registerBackendHandlers();
 registerModelHandlers();
 registerSystemHandlers();
 registerUpdateHandlers();
+registerTerminalHandlers();
 
 app.whenReady().then(() => {
   createWindow();
@@ -69,6 +71,7 @@ app.on('activate', () => {
 // Clean up server processes on quit
 app.on('before-quit', async () => {
   stopControlApi();
+  shutdownTerminal();
   await shutdownBackends();
 });
 

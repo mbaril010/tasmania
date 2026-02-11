@@ -3,12 +3,17 @@ import { useApp } from '../contexts/AppContext';
 import Card from '../components/Common/Card';
 import Button from '../components/Common/Button';
 import StatusIndicator from '../components/Common/StatusIndicator';
+import ChatPanel from '../components/Chat/ChatPanel';
+import TerminalPanel from '../components/Terminal/TerminalPanel';
+
+type ChatTab = 'chat' | 'code';
 
 const HomeScreen: React.FC = () => {
-  const { backends, serverState, models, startServer, stopServer, settings } = useApp();
+  const { serverState, models, startServer, stopServer, settings } = useApp();
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<ChatTab>('chat');
 
   const handleStart = async () => {
     if (!selectedModel) return;
@@ -40,32 +45,9 @@ const HomeScreen: React.FC = () => {
     }
   };
 
-  const info = backends?.['llama.cpp'];
-
   return (
     <div style={{ padding: '2rem', maxWidth: 900, overflow: 'auto', height: '100%' }}>
       <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1.5rem' }}>Dashboard</h2>
-
-      {/* Backend Status */}
-      <Card style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>llama.cpp</span>
-          <span
-            style={{
-              fontSize: '0.75rem',
-              padding: '2px 8px',
-              borderRadius: 4,
-              background: info?.installed ? '#16532e' : '#3b1a1a',
-              color: info?.installed ? '#4ade80' : '#f87171',
-            }}
-          >
-            {info?.installed ? 'Built-in' : 'Missing'}
-          </span>
-        </div>
-        {info?.installed && info.version && (
-          <div style={{ fontSize: '0.8rem', color: '#666' }}>{info.version}</div>
-        )}
-      </Card>
 
       {/* Server Control */}
       <Card title="Server Control" style={{ marginBottom: '1.5rem' }}>
@@ -151,30 +133,56 @@ const HomeScreen: React.FC = () => {
         )}
       </Card>
 
-      {/* Quick Info */}
-      <Card title="Connect to Claude Code">
-        <div style={{ fontSize: '0.85rem', color: '#aaa', lineHeight: 1.6 }}>
-          <p style={{ marginBottom: 8 }}>
-            Once the server is running, you can use it as an OpenAI-compatible API provider:
-          </p>
-          <code
-            style={{
-              display: 'block',
-              background: '#252525',
-              padding: '10px 14px',
-              borderRadius: 6,
-              fontSize: '0.8rem',
-              color: '#e0e0e0',
-              fontFamily: 'monospace',
-              marginBottom: 8,
-            }}
-          >
-            http://localhost:{serverState.port || settings?.llamaCpp.port || 8080}/v1
-          </code>
-          <p>
-            Or use the MCP server integration from the Settings tab for direct Claude Code connectivity.
-          </p>
+      {/* Chat / Code tabs */}
+      <Card style={{ marginBottom: '1.5rem' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: 4,
+            marginBottom: 16,
+            background: '#141414',
+            borderRadius: 10,
+            padding: 4,
+            width: 'fit-content',
+          }}
+        >
+          {([
+            { id: 'chat' as ChatTab, label: '💬 Chat' },
+            { id: 'code' as ChatTab, label: '🖥 Code' },
+          ]).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                border: 'none',
+                background: activeTab === tab.id ? '#333' : 'transparent',
+                color: activeTab === tab.id ? '#fff' : '#888',
+                cursor: 'pointer',
+                fontSize: '0.85rem',
+                fontWeight: activeTab === tab.id ? 600 : 400,
+                fontFamily: 'inherit',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
+
+        {activeTab === 'chat' && <ChatPanel mode="chat" />}
+        {activeTab === 'code' && (
+          serverState.status === 'running'
+            ? <TerminalPanel />
+            : (
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+                <p style={{ fontSize: '0.9rem' }}>
+                  Start the server above to use Claude Code.
+                </p>
+              </div>
+            )
+        )}
       </Card>
     </div>
   );

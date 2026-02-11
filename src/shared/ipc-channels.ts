@@ -43,4 +43,13 @@ export const IPC = {
   UPDATE_AVAILABLE: 'update:available',
   UPDATE_NOT_AVAILABLE: 'update:not-available',
   UPDATE_ERROR: 'update:error',
+
+  // Terminal operations
+  TERMINAL_CREATE: 'terminal:create',
+  TERMINAL_WRITE: 'terminal:write',
+  TERMINAL_RESIZE: 'terminal:resize',
+  TERMINAL_KILL: 'terminal:kill',
+
+  // Terminal events (main → renderer)
+  TERMINAL_DATA: 'terminal:data',
 } as const;
