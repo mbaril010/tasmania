@@ -4,8 +4,10 @@ import Card from '../components/Common/Card';
 import Button from '../components/Common/Button';
 
 const SettingsScreen: React.FC = () => {
-  const { settings, updateSettings, systemInfo } = useApp();
+  const { settings, updateSettings, systemInfo, updateInfo, checkForUpdates } = useApp();
   const [copied, setCopied] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState<string | null>(null);
 
   if (!settings) {
     return <div style={{ padding: '2rem', color: '#666' }}>Loading settings...</div>;
@@ -39,6 +41,26 @@ const SettingsScreen: React.FC = () => {
 
   const handleOpenModelsDir = () => {
     window.tasmania.openPath(settings.modelsDir);
+  };
+
+  const handleCheckForUpdates = async () => {
+    setCheckingUpdate(true);
+    setUpdateMessage(null);
+    try {
+      const result = await checkForUpdates();
+      if (result.error) {
+        setUpdateMessage(`Error: ${result.error}`);
+      } else if (result.updateAvailable && result.updateInfo) {
+        setUpdateMessage(`Update available: v${result.updateInfo.latestVersion}`);
+      } else {
+        setUpdateMessage('You are running the latest version');
+      }
+    } catch {
+      setUpdateMessage('Failed to check for updates');
+    } finally {
+      setCheckingUpdate(false);
+    }
+    setTimeout(() => setUpdateMessage(null), 5000);
   };
 
   return (
@@ -134,6 +156,57 @@ const SettingsScreen: React.FC = () => {
               Auto-start server on app launch
             </label>
           </div>
+        </div>
+      </Card>
+
+      {/* Updates */}
+      <Card title="Updates" style={{ marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              id="autoCheckUpdates"
+              checked={settings.autoCheckUpdates ?? true}
+              onChange={(e) => updateSettings({ autoCheckUpdates: e.target.checked })}
+            />
+            <label htmlFor="autoCheckUpdates" style={{ fontSize: '0.85rem', color: '#aaa' }}>
+              Automatically check for updates on launch
+            </label>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Button variant="secondary" size="sm" onClick={handleCheckForUpdates} disabled={checkingUpdate}>
+              {checkingUpdate ? 'Checking...' : 'Check for Updates'}
+            </Button>
+            {updateMessage && (
+              <span style={{ fontSize: '0.85rem', color: '#888' }}>{updateMessage}</span>
+            )}
+          </div>
+
+          {updateInfo?.isUpdateAvailable && (
+            <div
+              style={{
+                background: '#1a3a1a',
+                border: '1px solid #2d5a2d',
+                borderRadius: 8,
+                padding: 12,
+              }}
+            >
+              <div style={{ fontSize: '0.85rem', color: '#7dd87d', marginBottom: 8, fontWeight: 600 }}>
+                Update Available: v{updateInfo.latestVersion}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#aaa', marginBottom: 8 }}>
+                Current version: v{updateInfo.currentVersion}
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => window.tasmania.openExternal(updateInfo.downloadUrl)}
+              >
+                Download Update
+              </Button>
+            </div>
+          )}
         </div>
       </Card>
 

@@ -15,6 +15,7 @@ const DEFAULT_MODELS_DIR = path.join(
 const defaults: AppSettings = {
   modelsDir: DEFAULT_MODELS_DIR,
   autoStart: false,
+  autoCheckUpdates: true,
   llamaCpp: {
     port: LLAMA_CPP_DEFAULT_PORT,
     contextSize: DEFAULT_CONTEXT_SIZE,

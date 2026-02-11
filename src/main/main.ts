@@ -3,7 +3,9 @@ import path from 'node:path';
 import { registerBackendHandlers, shutdownBackends } from './ipc/backend-handlers';
 import { registerModelHandlers } from './ipc/model-handlers';
 import { registerSystemHandlers } from './ipc/system-handlers';
+import { registerUpdateHandlers, checkForUpdatesOnLaunch } from './ipc/update-handlers';
 import { startControlApi, stopControlApi } from './mcp/control-api';
+import { getSettings } from './store/AppStore';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -46,10 +48,12 @@ ipcMain.handle('ping', () => 'pong');
 registerBackendHandlers();
 registerModelHandlers();
 registerSystemHandlers();
+registerUpdateHandlers();
 
 app.whenReady().then(() => {
   createWindow();
   startControlApi();
+  checkForUpdatesOnLaunch(getSettings().autoCheckUpdates ?? true);
 });
 
 app.on('window-all-closed', () => {

@@ -32,5 +32,15 @@ export const IPC = {
   // System
   SYSTEM_INFO: 'system:info',
   SYSTEM_OPEN_PATH: 'system:open-path',
+  SYSTEM_OPEN_EXTERNAL: 'system:open-external',
   SYSTEM_SELECT_DIR: 'system:select-dir',
+
+  // Update operations
+  UPDATE_CHECK: 'update:check',
+  UPDATE_GET_INFO: 'update:get-info',
+
+  // Update events (main → renderer)
+  UPDATE_AVAILABLE: 'update:available',
+  UPDATE_NOT_AVAILABLE: 'update:not-available',
+  UPDATE_ERROR: 'update:error',
 } as const;

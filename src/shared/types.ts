@@ -74,12 +74,30 @@ export interface DownloadProgress {
 export interface AppSettings {
   modelsDir: string;
   autoStart: boolean;
+  autoCheckUpdates: boolean;
   llamaCpp: {
     port: number;
     contextSize: number;
     gpuLayers: number;
   };
   theme: 'light' | 'dark' | 'system';
+}
+
+// ── Update Types ──
+
+export interface UpdateInfo {
+  currentVersion: string;
+  latestVersion: string;
+  releaseNotes: string;
+  downloadUrl: string;
+  releasedAt: string;
+  isUpdateAvailable: boolean;
+}
+
+export interface UpdateCheckResult {
+  updateAvailable: boolean;
+  updateInfo: UpdateInfo | null;
+  error: string | null;
 }
 
 // ── App State ──

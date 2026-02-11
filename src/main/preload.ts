@@ -10,6 +10,8 @@ import type {
   LocalModel,
   ServerOptions,
   ServerState,
+  UpdateCheckResult,
+  UpdateInfo,
 } from '../shared/types';
 
 // Type-safe API exposed to the renderer
@@ -74,12 +76,28 @@ const api = {
   setSettings: (settings: Partial<AppSettings>): Promise<void> =>
     ipcRenderer.invoke(IPC.SETTINGS_SET, settings),
 
+  // ── Update ──
+  checkForUpdates: (): Promise<UpdateCheckResult> =>
+    ipcRenderer.invoke(IPC.UPDATE_CHECK),
+
+  getUpdateInfo: (): Promise<UpdateInfo | null> =>
+    ipcRenderer.invoke(IPC.UPDATE_GET_INFO),
+
+  onUpdateAvailable: (callback: (info: UpdateInfo) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, info: UpdateInfo) => callback(info);
+    ipcRenderer.on(IPC.UPDATE_AVAILABLE, handler);
+    return () => ipcRenderer.removeListener(IPC.UPDATE_AVAILABLE, handler);
+  },
+
   // ── System ──
   getSystemInfo: (): Promise<{ platform: string; arch: string; memory: number }> =>
     ipcRenderer.invoke(IPC.SYSTEM_INFO),
 
   openPath: (path: string): Promise<void> =>
     ipcRenderer.invoke(IPC.SYSTEM_OPEN_PATH, path),
+
+  openExternal: (url: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.SYSTEM_OPEN_EXTERNAL, url),
 
   selectDirectory: (): Promise<string | null> =>
     ipcRenderer.invoke(IPC.SYSTEM_SELECT_DIR),

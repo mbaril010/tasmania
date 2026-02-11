@@ -17,6 +17,10 @@ export function registerSystemHandlers() {
     await shell.openPath(filePath);
   });
 
+  ipcMain.handle(IPC.SYSTEM_OPEN_EXTERNAL, async (_event, url: string) => {
+    await shell.openExternal(url);
+  });
+
   ipcMain.handle(IPC.SYSTEM_SELECT_DIR, async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'createDirectory'],

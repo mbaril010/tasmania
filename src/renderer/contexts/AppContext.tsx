@@ -6,6 +6,8 @@ import type {
   DownloadProgress,
   LocalModel,
   ServerState,
+  UpdateCheckResult,
+  UpdateInfo,
 } from '../../shared/types';
 
 interface AppContextValue {
@@ -29,6 +31,10 @@ interface AppContextValue {
 
   // System
   systemInfo: { platform: string; arch: string; memory: number } | null;
+
+  // Update
+  updateInfo: UpdateInfo | null;
+  checkForUpdates: () => Promise<UpdateCheckResult>;
 }
 
 const defaultServerState: ServerState = {
@@ -58,6 +64,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [downloads, setDownloads] = useState<DownloadProgress[]>([]);
   const [settings, setSettingsState] = useState<AppSettings | null>(null);
   const [systemInfo, setSystemInfo] = useState<{ platform: string; arch: string; memory: number } | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
 
   // Track cleanup functions
   const cleanupRef = useRef<Array<() => void>>([]);
@@ -100,7 +107,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    cleanupRef.current = [unsub1, unsub2, unsub3];
+    const unsub4 = api.onUpdateAvailable((info) => {
+      setUpdateInfo(info);
+    });
+
+    cleanupRef.current = [unsub1, unsub2, unsub3, unsub4];
 
     return () => {
       cleanupRef.current.forEach((fn) => fn());
@@ -150,6 +161,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSettingsState(updated);
   }, []);
 
+  const checkForUpdates = useCallback(async () => {
+    const result = await window.tasmania.checkForUpdates();
+    if (result.updateInfo) {
+      setUpdateInfo(result.updateInfo);
+    }
+    return result;
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -166,6 +185,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         settings,
         updateSettings,
         systemInfo,
+        updateInfo,
+        checkForUpdates,
       }}
     >
       {children}
