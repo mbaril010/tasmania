@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../contexts/AppContext';
+import { useChatSessions } from '../../contexts/ChatSessionContext';
 import Button from '../Common/Button';
 import type { ChatMessage } from '../../../shared/types';
 
@@ -50,11 +51,13 @@ interface ChatPanelProps {
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
   const { serverState } = useApp();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { activeSession, addMessage } = useChatSessions();
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const messages = activeSession.messages;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -65,8 +68,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
     if (!trimmed || isLoading) return;
 
     const userMessage: ChatMessage = { role: 'user', content: trimmed };
+    addMessage(userMessage);
     const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
     setInput('');
     setError(null);
     setIsLoading(true);
@@ -106,7 +109,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
         throw new Error('No response content received from model');
       }
 
-      setMessages([...newMessages, { role: 'assistant', content: assistantContent }]);
+      addMessage({ role: 'assistant', content: assistantContent });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -138,11 +141,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
   }
 
   return (
-    <>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
       {/* Message list */}
       <div
         style={{
-          maxHeight: 400,
+          flex: 1,
           overflowY: 'auto',
           marginBottom: 12,
           display: 'flex',
@@ -203,7 +206,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
           {error}
         </div>
       )}
-    </>
+    </div>
   );
 };
 

@@ -61,15 +61,19 @@ const TerminalPanel: React.FC = () => {
       window.tasmania.terminal.resize(cols, rows);
     });
 
-    // ResizeObserver for auto-fit
+    // ResizeObserver for auto-fit (guard against zero dimensions when hidden)
     const resizeObserver = new ResizeObserver(() => {
-      fitAddon.fit();
+      if (container.offsetWidth > 0 && container.offsetHeight > 0) {
+        fitAddon.fit();
+      }
     });
     resizeObserver.observe(container);
 
     // Init: fit → create PTY → focus → launch claude
     const init = async () => {
-      fitAddon.fit();
+      if (container.offsetWidth > 0 && container.offsetHeight > 0) {
+        fitAddon.fit();
+      }
       if (cancelled) return;
 
       // Redirect Claude Code API calls to local llama-server
@@ -88,7 +92,7 @@ const TerminalPanel: React.FC = () => {
       // Wait for shell to init, then launch claude
       setTimeout(() => {
         if (!cancelled) {
-          window.tasmania.terminal.write('claude\n');
+          window.tasmania.terminal.write('claude --dangerously-skip-permissions\n');
         }
       }, 1000);
     };

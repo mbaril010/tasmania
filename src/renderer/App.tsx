@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppProvider } from './contexts/AppContext';
+import { ChatSessionProvider } from './contexts/ChatSessionContext';
 import Sidebar from './components/Layout/Sidebar';
 import HomeScreen from './screens/HomeScreen';
 import ModelsScreen from './screens/ModelsScreen';
@@ -15,8 +16,8 @@ declare global {
   }
 }
 
+// Screens that are stateless and can remount freely
 const screens: Record<string, React.FC> = {
-  home: HomeScreen,
   models: ModelsScreen,
   backends: BackendsScreen,
   api: ApiScreen,
@@ -25,16 +26,22 @@ const screens: Record<string, React.FC> = {
 
 const App: React.FC = () => {
   const [activeScreen, setActiveScreen] = useState('home');
-  const Screen = screens[activeScreen] ?? HomeScreen;
+  const Screen = activeScreen !== 'home' ? screens[activeScreen] : null;
 
   return (
     <AppProvider>
-      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-        <Sidebar activeScreen={activeScreen} onNavigate={setActiveScreen} />
-        <main style={{ flex: 1, overflow: 'hidden' }}>
-          <Screen />
-        </main>
-      </div>
+      <ChatSessionProvider>
+        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+          <Sidebar activeScreen={activeScreen} onNavigate={setActiveScreen} />
+          <main style={{ flex: 1, overflow: 'hidden' }}>
+            {/* HomeScreen always rendered, hidden when inactive to preserve state */}
+            <div style={{ height: '100%', display: activeScreen === 'home' ? 'block' : 'none' }}>
+              <HomeScreen />
+            </div>
+            {Screen && <Screen />}
+          </main>
+        </div>
+      </ChatSessionProvider>
     </AppProvider>
   );
 };

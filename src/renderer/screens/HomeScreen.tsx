@@ -1,19 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
 import Card from '../components/Common/Card';
 import Button from '../components/Common/Button';
 import StatusIndicator from '../components/Common/StatusIndicator';
 import ChatPanel from '../components/Chat/ChatPanel';
+import SessionSidebar from '../components/Chat/SessionSidebar';
 import TerminalPanel from '../components/Terminal/TerminalPanel';
 
 type ChatTab = 'chat' | 'code';
 
 const HomeScreen: React.FC = () => {
-  const { serverState, models, startServer, stopServer, settings } = useApp();
+  const { serverState, models, startServer, stopServer } = useApp();
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ChatTab>('chat');
+  const [terminalCreated, setTerminalCreated] = useState(false);
 
   const handleStart = async () => {
     if (!selectedModel) return;
@@ -44,6 +46,13 @@ const HomeScreen: React.FC = () => {
       navigator.clipboard.writeText(`http://localhost:${port}/v1`);
     }
   };
+
+  // Gate terminal creation: once created, keep it alive even if server stops
+  useEffect(() => {
+    if (serverState.status === 'running' && !terminalCreated) {
+      setTerminalCreated(true);
+    }
+  }, [serverState.status, terminalCreated]);
 
   return (
     <div style={{ padding: '2rem', maxWidth: 900, overflow: 'auto', height: '100%' }}>
@@ -134,7 +143,7 @@ const HomeScreen: React.FC = () => {
       </Card>
 
       {/* Chat / Code tabs */}
-      <Card style={{ marginBottom: '1.5rem' }}>
+      <Card style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column' }}>
         <div
           style={{
             display: 'flex',
@@ -171,9 +180,17 @@ const HomeScreen: React.FC = () => {
           ))}
         </div>
 
-        {activeTab === 'chat' && <ChatPanel mode="chat" />}
-        {activeTab === 'code' && (
-          serverState.status === 'running'
+        {/* Chat tab: sidebar + chat panel, always rendered, toggled via display */}
+        <div style={{ display: activeTab === 'chat' ? 'flex' : 'none', flex: 1 }}>
+          <SessionSidebar />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 12 }}>
+            <ChatPanel mode="chat" />
+          </div>
+        </div>
+
+        {/* Code tab: always rendered once created, toggled via display */}
+        <div style={{ display: activeTab === 'code' ? 'block' : 'none' }}>
+          {terminalCreated
             ? <TerminalPanel />
             : (
               <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
@@ -182,7 +199,8 @@ const HomeScreen: React.FC = () => {
                 </p>
               </div>
             )
-        )}
+          }
+        </div>
       </Card>
     </div>
   );

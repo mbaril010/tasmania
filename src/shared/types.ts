@@ -107,6 +107,14 @@ export interface ChatMessage {
   content: string;
 }
 
+export interface ChatSession {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 // ── App State ──
 
 export interface AppState {
