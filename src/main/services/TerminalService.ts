@@ -21,15 +21,15 @@ interface IPty {
 }
 
 export class TerminalService extends EventEmitter {
-  private ptyProcess: IPty | null = null;
+  private processes = new Map<string, IPty>();
 
-  create(cols: number, rows: number, customEnv?: Record<string, string>): void {
-    // Kill existing PTY if any
-    this.kill();
+  create(sessionId: string, cols: number, rows: number, customEnv?: Record<string, string>): void {
+    // Kill existing PTY for this session if any
+    this.kill(sessionId);
 
     const shell = process.env.SHELL || '/bin/zsh';
 
-    this.ptyProcess = pty.spawn(shell, ['-l'], {
+    const proc = pty.spawn(shell, ['-l'], {
       name: 'xterm-256color',
       cols,
       rows,
@@ -37,29 +37,38 @@ export class TerminalService extends EventEmitter {
       env: { ...process.env, ...customEnv } as Record<string, string>,
     });
 
-    const proc = this.ptyProcess;
+    this.processes.set(sessionId, proc);
+
     proc.onData((data: string) => {
-      this.emit('data', data);
+      this.emit('data', sessionId, data);
     });
 
     proc.onExit(() => {
-      this.ptyProcess = null;
-      this.emit('exit');
+      this.processes.delete(sessionId);
+      this.emit('exit', sessionId);
     });
   }
 
-  write(data: string): void {
-    this.ptyProcess?.write(data);
+  write(sessionId: string, data: string): void {
+    this.processes.get(sessionId)?.write(data);
   }
 
-  resize(cols: number, rows: number): void {
-    this.ptyProcess?.resize(cols, rows);
+  resize(sessionId: string, cols: number, rows: number): void {
+    this.processes.get(sessionId)?.resize(cols, rows);
   }
 
-  kill(): void {
-    if (this.ptyProcess) {
-      this.ptyProcess.kill();
-      this.ptyProcess = null;
+  kill(sessionId: string): void {
+    const proc = this.processes.get(sessionId);
+    if (proc) {
+      proc.kill();
+      this.processes.delete(sessionId);
+    }
+  }
+
+  killAll(): void {
+    for (const [id, proc] of this.processes) {
+      proc.kill();
+      this.processes.delete(id);
     }
   }
 }

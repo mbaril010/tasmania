@@ -115,6 +115,15 @@ export interface ChatSession {
   updatedAt: number;
 }
 
+// ── Terminal Types ──
+
+export interface TerminalSession {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 // ── App State ──
 
 export interface AppState {

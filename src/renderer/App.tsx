@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AppProvider } from './contexts/AppContext';
 import { ChatSessionProvider } from './contexts/ChatSessionContext';
+import { TerminalSessionProvider } from './contexts/TerminalSessionContext';
 import Sidebar from './components/Layout/Sidebar';
 import HomeScreen from './screens/HomeScreen';
 import ModelsScreen from './screens/ModelsScreen';
@@ -31,16 +32,18 @@ const App: React.FC = () => {
   return (
     <AppProvider>
       <ChatSessionProvider>
-        <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-          <Sidebar activeScreen={activeScreen} onNavigate={setActiveScreen} />
-          <main style={{ flex: 1, overflow: 'hidden' }}>
-            {/* HomeScreen always rendered, hidden when inactive to preserve state */}
-            <div style={{ height: '100%', display: activeScreen === 'home' ? 'block' : 'none' }}>
-              <HomeScreen />
-            </div>
-            {Screen && <Screen />}
-          </main>
-        </div>
+        <TerminalSessionProvider>
+          <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+            <Sidebar activeScreen={activeScreen} onNavigate={setActiveScreen} />
+            <main style={{ flex: 1, overflow: 'hidden' }}>
+              {/* HomeScreen always rendered, hidden when inactive to preserve state */}
+              <div style={{ height: '100%', display: activeScreen === 'home' ? 'block' : 'none' }}>
+                <HomeScreen />
+              </div>
+              {Screen && <Screen />}
+            </main>
+          </div>
+        </TerminalSessionProvider>
       </ChatSessionProvider>
     </AppProvider>
   );

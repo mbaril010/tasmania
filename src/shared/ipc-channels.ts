@@ -50,6 +50,9 @@ export const IPC = {
   TERMINAL_RESIZE: 'terminal:resize',
   TERMINAL_KILL: 'terminal:kill',
 
+  TERMINAL_KILL_ALL: 'terminal:kill-all',
+
   // Terminal events (main → renderer)
   TERMINAL_DATA: 'terminal:data',
+  TERMINAL_EXIT: 'terminal:exit',
 } as const;
