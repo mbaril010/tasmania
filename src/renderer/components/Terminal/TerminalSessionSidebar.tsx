@@ -46,10 +46,10 @@ const TerminalSessionSidebar: React.FC = () => {
         style={{
           margin: 8,
           padding: '8px 12px',
-          background: '#6366f1',
+          background: '#fbbf24',
           border: 'none',
           borderRadius: 8,
-          color: '#fff',
+          color: '#1a1a1a',
           fontSize: '0.8rem',
           fontWeight: 600,
           cursor: 'pointer',

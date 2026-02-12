@@ -17,6 +17,7 @@ const HomeScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ChatTab>('chat');
   const [terminalCreated, setTerminalCreated] = useState(false);
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
 
   const handleStart = async () => {
     if (!selectedModel) return;
@@ -30,11 +31,17 @@ const HomeScreen: React.FC = () => {
     setLoading(false);
   };
 
-  const handleStop = async () => {
+  const handleStop = () => {
+    setShowStopConfirm(true);
+  };
+
+  const confirmStop = async () => {
+    setShowStopConfirm(false);
     setLoading(true);
     setError(null);
     try {
       await stopServer();
+      setTerminalCreated(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -181,35 +188,101 @@ const HomeScreen: React.FC = () => {
           ))}
         </div>
 
-        {/* Chat tab: sidebar + chat panel, always rendered, toggled via display */}
-        <div style={{ display: activeTab === 'chat' ? 'flex' : 'none', flex: 1 }}>
-          <SessionSidebar />
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 12 }}>
-            <ChatPanel mode="chat" />
+        {terminalCreated ? (
+          <>
+            {/* Chat tab: sidebar + chat panel */}
+            <div style={{ display: activeTab === 'chat' ? 'flex' : 'none', flex: 1 }}>
+              <SessionSidebar />
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 12 }}>
+                <ChatPanel mode="chat" />
+              </div>
+            </div>
+
+            {/* Code tab: sidebar + terminal panel */}
+            <div style={{ display: activeTab === 'code' ? 'flex' : 'none', flex: 1 }}>
+              <TerminalSessionSidebar />
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 12 }}>
+                <TerminalPanel />
+              </div>
+            </div>
+          </>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '2rem', color: '#666', width: '100%' }}>
+            <p style={{ fontSize: '0.9rem' }}>
+              Start the server above to chat with your model.
+            </p>
+          </div>
+        )}
+      </Card>
+
+      {/* Stop Server confirmation dialog */}
+      {showStopConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setShowStopConfirm(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#1e1e1e',
+              border: '1px solid #333',
+              borderRadius: 12,
+              padding: '24px 28px',
+              maxWidth: 400,
+              width: '90%',
+            }}
+          >
+            <h3 style={{ margin: '0 0 8px', fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>
+              Stop Server?
+            </h3>
+            <p style={{ margin: '0 0 20px', fontSize: '0.9rem', color: '#999', lineHeight: 1.5 }}>
+              All active chat and terminal sessions will be ended. This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setShowStopConfirm(false)}
+                style={{
+                  padding: '8px 16px',
+                  background: '#333',
+                  border: 'none',
+                  borderRadius: 8,
+                  color: '#ccc',
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmStop}
+                style={{
+                  padding: '8px 16px',
+                  background: '#dc2626',
+                  border: 'none',
+                  borderRadius: 8,
+                  color: '#fff',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Stop Server
+              </button>
+            </div>
           </div>
         </div>
-
-        {/* Code tab: sidebar + terminal panel, always rendered once created, toggled via display */}
-        <div style={{ display: activeTab === 'code' ? 'flex' : 'none', flex: 1 }}>
-          {terminalCreated
-            ? (
-              <>
-                <TerminalSessionSidebar />
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 12 }}>
-                  <TerminalPanel />
-                </div>
-              </>
-            )
-            : (
-              <div style={{ textAlign: 'center', padding: '2rem', color: '#666', width: '100%' }}>
-                <p style={{ fontSize: '0.9rem' }}>
-                  Start the server above to use Claude Code.
-                </p>
-              </div>
-            )
-          }
-        </div>
-      </Card>
+      )}
     </div>
   );
 };

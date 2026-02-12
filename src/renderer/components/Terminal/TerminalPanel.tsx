@@ -13,6 +13,8 @@ interface TerminalInstance {
   inputDisposable: { dispose(): void };
   resizeDisposable: { dispose(): void };
   ptyCreated: boolean;
+  /** setTimeout ID for the claude launch command — cleared on teardown */
+  launchTimer: ReturnType<typeof setTimeout> | null;
 }
 
 const TERM_THEME = {
@@ -99,31 +101,12 @@ const TerminalPanel: React.FC = () => {
       inputDisposable,
       resizeDisposable,
       ptyCreated: false,
+      launchTimer: null,
     };
 
     instancesRef.current.set(sessionId, instance);
     return instance;
   }, []);
-
-  // Initialize PTY for a session (lazy, once)
-  const initPty = useCallback(async (sessionId: string, instance: TerminalInstance) => {
-    if (instance.ptyCreated) return;
-    instance.ptyCreated = true;
-
-    const { term, fitAddon, container } = instance;
-
-    if (container.offsetWidth > 0 && container.offsetHeight > 0) {
-      fitAddon.fit();
-    }
-
-    await window.tasmania.terminal.create(sessionId, term.cols, term.rows, getClaudeEnv());
-    term.focus();
-
-    // Wait for shell to init, then launch claude
-    setTimeout(() => {
-      window.tasmania.terminal.write(sessionId, 'claude --dangerously-skip-permissions\n');
-    }, 1000);
-  }, [getClaudeEnv]);
 
   // Subscribe to PTY data — route to correct terminal instance
   useEffect(() => {
@@ -146,6 +129,8 @@ const TerminalPanel: React.FC = () => {
 
   // Show/hide containers and lazy-init PTY when active session changes
   useEffect(() => {
+    let cancelled = false;
+
     for (const [id, instance] of instancesRef.current) {
       instance.container.style.display = id === activeSessionId ? 'block' : 'none';
     }
@@ -153,26 +138,53 @@ const TerminalPanel: React.FC = () => {
     const instance = ensureInstance(activeSessionId);
     instance.container.style.display = 'block';
 
-    // Fit after display:block takes effect
+    // Delay init to next frame so DOM is fully laid out (matches original pattern)
     requestAnimationFrame(() => {
-      const { fitAddon, container } = instance;
+      if (cancelled) return;
+
+      const { fitAddon, container, term } = instance;
       if (container.offsetWidth > 0 && container.offsetHeight > 0) {
         fitAddon.fit();
       }
-      instance.term.focus();
+      term.focus();
+
+      // Lazy init PTY
+      if (!instance.ptyCreated) {
+        instance.ptyCreated = true;
+
+        const initPty = async () => {
+          await window.tasmania.terminal.create(activeSessionId, term.cols, term.rows, getClaudeEnv());
+          if (cancelled) return;
+
+          term.focus();
+
+          // Wait for shell to init, then launch claude
+          instance.launchTimer = setTimeout(() => {
+            if (!cancelled) {
+              window.tasmania.terminal.write(activeSessionId, 'claude --dangerously-skip-permissions\n');
+            }
+          }, 1000);
+        };
+
+        initPty();
+      }
     });
 
-    // Lazy init PTY
-    if (!instance.ptyCreated) {
-      initPty(activeSessionId, instance);
-    }
-  }, [activeSessionId, ensureInstance, initPty]);
+    return () => {
+      cancelled = true;
+      if (instance.launchTimer !== null) {
+        clearTimeout(instance.launchTimer);
+        instance.launchTimer = null;
+      }
+    };
+  }, [activeSessionId, ensureInstance, getClaudeEnv]);
 
   // Clean up instances for deleted sessions
   useEffect(() => {
     const sessionIds = new Set(sessions.map((s) => s.id));
     for (const [id, instance] of instancesRef.current) {
       if (!sessionIds.has(id)) {
+        if (instance.launchTimer !== null) clearTimeout(instance.launchTimer);
         instance.resizeObserver.disconnect();
         instance.inputDisposable.dispose();
         instance.resizeDisposable.dispose();
@@ -188,6 +200,9 @@ const TerminalPanel: React.FC = () => {
     return () => {
       window.tasmania.terminal.killAll();
       for (const [, instance] of instancesRef.current) {
+        if (instance.launchTimer !== null) clearTimeout(instance.launchTimer);
+        // Reset ptyCreated so StrictMode remount re-inits the PTY
+        instance.ptyCreated = false;
         instance.resizeObserver.disconnect();
         instance.inputDisposable.dispose();
         instance.resizeDisposable.dispose();
