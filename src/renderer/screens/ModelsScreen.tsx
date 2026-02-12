@@ -65,7 +65,7 @@ const LocalModelsTab: React.FC = () => {
       <Card>
         <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
           <p style={{ fontSize: '1.1rem', marginBottom: 8 }}>No models downloaded yet</p>
-          <p style={{ fontSize: '0.85rem' }}>Switch to the HuggingFace tab to browse and download GGUF models.</p>
+          <p style={{ fontSize: '0.85rem' }}>Switch to the HuggingFace tab to browse and download models.</p>
         </div>
       </Card>
     );
@@ -164,7 +164,7 @@ const HuggingFaceBrowserTab: React.FC = () => {
       <div style={{ display: 'flex', gap: 8, marginBottom: '1.5rem' }}>
         <input
           type="text"
-          placeholder="Search GGUF models (e.g., llama 3.2, phi, qwen...)"
+          placeholder="Search models (e.g., llama 3.2, phi, qwen...)"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -189,7 +189,7 @@ const HuggingFaceBrowserTab: React.FC = () => {
       {results.length === 0 && !searching && (
         <Card>
           <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
-            Search HuggingFace for GGUF models to download.
+            Search HuggingFace for models to download.
           </div>
         </Card>
       )}
@@ -219,7 +219,7 @@ const HuggingFaceBrowserTab: React.FC = () => {
                 {loadingFiles ? (
                   <div style={{ color: '#666', fontSize: '0.85rem' }}>Loading files...</div>
                 ) : repoFiles.length === 0 ? (
-                  <div style={{ color: '#666', fontSize: '0.85rem' }}>No GGUF files found in this repo.</div>
+                  <div style={{ color: '#666', fontSize: '0.85rem' }}>No files found in this repo.</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {repoFiles.map((file) => {

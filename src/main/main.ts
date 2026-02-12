@@ -5,6 +5,7 @@ import { registerModelHandlers } from './ipc/model-handlers';
 import { registerSystemHandlers } from './ipc/system-handlers';
 import { registerUpdateHandlers, checkForUpdatesOnLaunch } from './ipc/update-handlers';
 import { registerTerminalHandlers, shutdownTerminal } from './ipc/terminal-handlers';
+import { registerImageHandlers, shutdownImageServer } from './ipc/image-handlers';
 import { startControlApi, stopControlApi } from './mcp/control-api';
 import { getSettings } from './store/AppStore';
 
@@ -51,6 +52,7 @@ registerModelHandlers();
 registerSystemHandlers();
 registerUpdateHandlers();
 registerTerminalHandlers();
+registerImageHandlers();
 
 app.whenReady().then(() => {
   createWindow();
@@ -69,10 +71,16 @@ app.on('activate', () => {
 });
 
 // Clean up server processes on quit
-app.on('before-quit', async () => {
-  stopControlApi();
-  shutdownTerminal();
-  await shutdownBackends();
+let isQuitting = false;
+app.on('before-quit', (event) => {
+  if (!isQuitting) {
+    event.preventDefault();
+    isQuitting = true;
+    stopControlApi();
+    shutdownTerminal();
+    Promise.all([shutdownImageServer(), shutdownBackends()])
+      .finally(() => app.quit());
+  }
 });
 
 // Declare Vite globals

@@ -1,6 +1,6 @@
 // ── Backend Types ──
 
-export type BackendType = 'llama.cpp';
+export type BackendType = 'llama.cpp' | 'stable-diffusion';
 
 export type ServerStatus = 'stopped' | 'starting' | 'running' | 'error';
 
@@ -69,6 +69,49 @@ export interface DownloadProgress {
   error: string | null;
 }
 
+// ── Image Model Architecture Types ──
+
+export type ImageModelArch = 'sd1' | 'sdxl' | 'flux' | 'sd3' | 'chroma';
+
+export type CompanionRole = 'diffusion_model' | 't5xxl' | 'clip_l' | 'clip_g' | 'vae';
+
+export interface CompanionFileStatus {
+  role: CompanionRole;
+  flag: string;
+  required: boolean;
+  found: boolean;
+  path: string | null;
+  patterns: string[];
+}
+
+export interface ModelResolution {
+  arch: ImageModelArch;
+  primaryPath: string;
+  primaryFlag: string;
+  companions: CompanionFileStatus[];
+  ready: boolean;
+  missingRequired: string[];
+}
+
+// ── Image Generation Types ──
+
+export interface ImageGenerationRequest {
+  prompt: string;
+  negativePrompt?: string;
+  width: number;
+  height: number;
+  steps: number;
+  cfgScale: number;
+  seed?: number;
+  sampler?: string;
+}
+
+export interface ImageGenerationResult {
+  b64: string;
+  seed: number;
+  timingMs: number;
+}
+
 // ── Settings Types ──
 
 export interface AppSettings {
@@ -79,6 +122,13 @@ export interface AppSettings {
     port: number;
     contextSize: number;
     gpuLayers: number;
+  };
+  stableDiffusion: {
+    port: number;
+    defaultSteps: number;
+    defaultCfgScale: number;
+    defaultWidth: number;
+    defaultHeight: number;
   };
   theme: 'light' | 'dark' | 'system';
 }

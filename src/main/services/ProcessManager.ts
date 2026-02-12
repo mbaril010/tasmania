@@ -106,11 +106,15 @@ export class ProcessManager extends EventEmitter {
         this.emit('error', err);
       });
 
-      proc.on('exit', (code, signal) => {
+      // Use 'close' instead of 'exit' — 'close' fires after all stdio
+      // streams are drained, ensuring logs are fully captured before we
+      // inspect them for error matching in callers like StableDiffusionBackend.
+      proc.on('close', (code, signal) => {
         clearTimeout(timeout);
         this.cleanup();
         if (!resolved) {
-          reject(new Error(`Process exited early with code ${code}, signal ${signal}`));
+          const recentLogs = this.logs.slice(-5).join('\n');
+          reject(new Error(`Process exited early with code ${code}, signal ${signal}\n${recentLogs}`));
         }
         this.emit('exit', code, signal);
       });

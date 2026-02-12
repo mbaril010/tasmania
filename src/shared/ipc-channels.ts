@@ -44,6 +44,19 @@ export const IPC = {
   UPDATE_NOT_AVAILABLE: 'update:not-available',
   UPDATE_ERROR: 'update:error',
 
+  // Image generation operations
+  IMAGE_START: 'image:start',
+  IMAGE_STOP: 'image:stop',
+  IMAGE_STATUS: 'image:status',
+  IMAGE_LOGS: 'image:logs',
+  IMAGE_GENERATE: 'image:generate',
+
+  IMAGE_RESOLVE_MODEL: 'image:resolve-model',
+
+  // Image events (main → renderer)
+  IMAGE_STATUS_CHANGED: 'image:status-changed',
+  IMAGE_LOG_LINE: 'image:log-line',
+
   // Terminal operations
   TERMINAL_CREATE: 'terminal:create',
   TERMINAL_WRITE: 'terminal:write',

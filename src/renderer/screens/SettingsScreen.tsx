@@ -139,6 +139,85 @@ const SettingsScreen: React.FC = () => {
         </div>
       </Card>
 
+      {/* Image Generation */}
+      <Card title="Image Generation" style={{ marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Port:</label>
+            <input
+              type="number"
+              value={settings.stableDiffusion?.port ?? 1234}
+              onChange={(e) =>
+                updateSettings({
+                  stableDiffusion: { ...settings.stableDiffusion, port: parseInt(e.target.value) || 1234 },
+                })
+              }
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Default steps:</label>
+            <input
+              type="number"
+              value={settings.stableDiffusion?.defaultSteps ?? 20}
+              onChange={(e) =>
+                updateSettings({
+                  stableDiffusion: { ...settings.stableDiffusion, defaultSteps: parseInt(e.target.value) || 20 },
+                })
+              }
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Default CFG scale:</label>
+            <input
+              type="number"
+              step="0.5"
+              value={settings.stableDiffusion?.defaultCfgScale ?? 7.0}
+              onChange={(e) =>
+                updateSettings({
+                  stableDiffusion: { ...settings.stableDiffusion, defaultCfgScale: parseFloat(e.target.value) || 7.0 },
+                })
+              }
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: 16 }}>
+            <div>
+              <label style={labelStyle}>Default width:</label>
+              <input
+                type="number"
+                step="64"
+                value={settings.stableDiffusion?.defaultWidth ?? 512}
+                onChange={(e) =>
+                  updateSettings({
+                    stableDiffusion: { ...settings.stableDiffusion, defaultWidth: parseInt(e.target.value) || 512 },
+                  })
+                }
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Default height:</label>
+              <input
+                type="number"
+                step="64"
+                value={settings.stableDiffusion?.defaultHeight ?? 512}
+                onChange={(e) =>
+                  updateSettings({
+                    stableDiffusion: { ...settings.stableDiffusion, defaultHeight: parseInt(e.target.value) || 512 },
+                  })
+                }
+                style={inputStyle}
+              />
+            </div>
+          </div>
+        </div>
+      </Card>
+
       {/* Updates */}
       <Card title="Updates" style={{ marginBottom: '1rem' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

@@ -23,7 +23,7 @@ export function setActiveBackend(b: BackendService | null): void {
   activeBackend = b;
 }
 
-export function getBackends(): Record<BackendType, BackendService> {
+export function getBackends(): Record<string, BackendService> {
   return { 'llama.cpp': backend };
 }
 

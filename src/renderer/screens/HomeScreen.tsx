@@ -1,59 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
 import Card from '../components/Common/Card';
-import Button from '../components/Common/Button';
-import StatusIndicator from '../components/Common/StatusIndicator';
+import LLMServerControl from '../components/Common/LLMServerControl';
 import ChatPanel from '../components/Chat/ChatPanel';
 import SessionSidebar from '../components/Chat/SessionSidebar';
 import TerminalPanel from '../components/Terminal/TerminalPanel';
 import TerminalSessionSidebar from '../components/Terminal/TerminalSessionSidebar';
+import ImagePanel from '../components/Image/ImagePanel';
 
-type ChatTab = 'chat' | 'code';
+type ChatTab = 'chat' | 'code' | 'image';
 
 const HomeScreen: React.FC = () => {
-  const { serverState, models, startServer, stopServer } = useApp();
-  const [selectedModel, setSelectedModel] = useState<string>('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { serverState } = useApp();
   const [activeTab, setActiveTab] = useState<ChatTab>('chat');
   const [terminalCreated, setTerminalCreated] = useState(false);
-  const [showStopConfirm, setShowStopConfirm] = useState(false);
-
-  const handleStart = async () => {
-    if (!selectedModel) return;
-    setLoading(true);
-    setError(null);
-    try {
-      await startServer('llama.cpp', selectedModel);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-    setLoading(false);
-  };
-
-  const handleStop = () => {
-    setShowStopConfirm(true);
-  };
-
-  const confirmStop = async () => {
-    setShowStopConfirm(false);
-    setLoading(true);
-    setError(null);
-    try {
-      await stopServer();
-      setTerminalCreated(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-    setLoading(false);
-  };
-
-  const copyEndpoint = () => {
-    if (serverState.status === 'running') {
-      const port = serverState.port;
-      navigator.clipboard.writeText(`http://localhost:${port}/v1`);
-    }
-  };
 
   // Gate terminal creation: once created, keep it alive even if server stops
   useEffect(() => {
@@ -66,91 +26,7 @@ const HomeScreen: React.FC = () => {
     <div style={{ padding: '2rem', maxWidth: 900, overflow: 'auto', height: '100%' }}>
       <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1.5rem' }}>Dashboard</h2>
 
-      {/* Server Control */}
-      <Card title="Server Control" style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-          <StatusIndicator status={serverState.status} />
-          {serverState.status === 'running' && (
-            <button
-              onClick={copyEndpoint}
-              style={{
-                background: '#252525',
-                border: '1px solid #333',
-                borderRadius: 6,
-                padding: '4px 10px',
-                color: '#aaa',
-                cursor: 'pointer',
-                fontSize: '0.8rem',
-                fontFamily: 'monospace',
-              }}
-              title="Click to copy"
-            >
-              http://localhost:{serverState.port}/v1
-            </button>
-          )}
-        </div>
-
-        {serverState.status === 'stopped' && (
-          <>
-            {/* Model selector */}
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: '0.85rem', color: '#888', marginBottom: 6 }}>
-                Select a model to load:
-              </label>
-              <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  background: '#252525',
-                  border: '1px solid #333',
-                  borderRadius: 8,
-                  color: '#e0e0e0',
-                  fontSize: '0.9rem',
-                  fontFamily: 'inherit',
-                }}
-              >
-                <option value="">-- Select Model --</option>
-                {models.map((m) => (
-                  <option key={m.path} value={m.path}>
-                    {m.filename} ({formatBytes(m.sizeBytes)})
-                  </option>
-                ))}
-              </select>
-              {models.length === 0 && (
-                <div style={{ fontSize: '0.8rem', color: '#666', marginTop: 6 }}>
-                  No models downloaded yet. Go to the Models tab to download one.
-                </div>
-              )}
-            </div>
-            <Button onClick={handleStart} disabled={!selectedModel || loading}>
-              {loading ? 'Starting...' : 'Start Server'}
-            </Button>
-          </>
-        )}
-
-        {(serverState.status === 'running' || serverState.status === 'starting') && (
-          <div>
-            {serverState.modelName && (
-              <div style={{ fontSize: '0.85rem', color: '#aaa', marginBottom: 12 }}>
-                Model: <strong>{serverState.modelName}</strong>
-              </div>
-            )}
-            <Button variant="danger" onClick={handleStop} disabled={loading}>
-              {loading ? 'Stopping...' : 'Stop Server'}
-            </Button>
-          </div>
-        )}
-
-        {error && (
-          <div style={{ marginTop: 12, padding: '8px 12px', background: '#3b1a1a', borderRadius: 6, color: '#f87171', fontSize: '0.85rem' }}>
-            {error}
-          </div>
-        )}
-      </Card>
-
-      {/* Chat / Code tabs */}
+      {/* Chat / Code / Image tabs */}
       <Card style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column' }}>
         <div
           style={{
@@ -166,6 +42,7 @@ const HomeScreen: React.FC = () => {
           {([
             { id: 'chat' as ChatTab, label: '💬 Chat' },
             { id: 'code' as ChatTab, label: '🖥 Code' },
+            { id: 'image' as ChatTab, label: '🎨 Image' },
           ]).map((tab) => (
             <button
               key={tab.id}
@@ -188,111 +65,38 @@ const HomeScreen: React.FC = () => {
           ))}
         </div>
 
-        {terminalCreated ? (
-          <>
-            {/* Chat tab: sidebar + chat panel */}
-            <div style={{ display: activeTab === 'chat' ? 'flex' : 'none', flex: 1 }}>
-              <SessionSidebar />
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 12 }}>
-                <ChatPanel mode="chat" />
-              </div>
-            </div>
+        {/* Image tab: always available — manages its own server */}
+        <div style={{ display: activeTab === 'image' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}>
+          <ImagePanel />
+        </div>
 
-            {/* Code tab: sidebar + terminal panel */}
-            <div style={{ display: activeTab === 'code' ? 'flex' : 'none', flex: 1 }}>
-              <TerminalSessionSidebar />
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 12 }}>
-                <TerminalPanel />
-              </div>
-            </div>
-          </>
-        ) : (
-          <div style={{ textAlign: 'center', padding: '2rem', color: '#666', width: '100%' }}>
-            <p style={{ fontSize: '0.9rem' }}>
-              Start the server above to chat with your model.
-            </p>
-          </div>
-        )}
-      </Card>
-
-      {/* Stop Server confirmation dialog */}
-      {showStopConfirm && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-          onClick={() => setShowStopConfirm(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: '#1e1e1e',
-              border: '1px solid #333',
-              borderRadius: 12,
-              padding: '24px 28px',
-              maxWidth: 400,
-              width: '90%',
-            }}
-          >
-            <h3 style={{ margin: '0 0 8px', fontSize: '1.1rem', fontWeight: 600, color: '#e0e0e0' }}>
-              Stop Server?
-            </h3>
-            <p style={{ margin: '0 0 20px', fontSize: '0.9rem', color: '#999', lineHeight: 1.5 }}>
-              All active chat and terminal sessions will be ended. This action cannot be undone.
-            </p>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setShowStopConfirm(false)}
-                style={{
-                  padding: '8px 16px',
-                  background: '#333',
-                  border: 'none',
-                  borderRadius: 8,
-                  color: '#ccc',
-                  fontSize: '0.85rem',
-                  fontWeight: 500,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmStop}
-                style={{
-                  padding: '8px 16px',
-                  background: '#dc2626',
-                  border: 'none',
-                  borderRadius: 8,
-                  color: '#fff',
-                  fontSize: '0.85rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                Stop Server
-              </button>
-            </div>
+        {/* Chat tab: sidebar + chat panel (ChatPanel has its own LLMServerControl) */}
+        <div style={{ display: activeTab === 'chat' ? 'flex' : 'none', flex: 1 }}>
+          <SessionSidebar />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 12 }}>
+            <ChatPanel mode="chat" />
           </div>
         </div>
-      )}
+
+        {/* Code tab: server control + terminal panel */}
+        <div style={{ display: activeTab === 'code' ? 'flex' : 'none', flex: 1 }}>
+          <TerminalSessionSidebar />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 12 }}>
+            <LLMServerControl onServerStopped={() => setTerminalCreated(false)} />
+            {terminalCreated ? (
+              <TerminalPanel />
+            ) : (
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+                <p style={{ fontSize: '0.9rem' }}>
+                  Start the server to use the terminal.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
     </div>
   );
 };
-
-function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
-}
 
 export default HomeScreen;

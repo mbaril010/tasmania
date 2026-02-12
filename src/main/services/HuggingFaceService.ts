@@ -12,11 +12,10 @@ import type { HuggingFaceModel, HuggingFaceFile, DownloadProgress } from '../../
 export class HuggingFaceService extends EventEmitter {
   private activeDownloads = new Map<string, AbortController>();
 
-  /** Search for GGUF models on HuggingFace */
+  /** Search for models on HuggingFace */
   async searchModels(query: string, limit = 30): Promise<HuggingFaceModel[]> {
     const url = `${HF_API_BASE}/models?` + new URLSearchParams({
       search: query,
-      filter: 'gguf',
       sort: 'downloads',
       direction: '-1',
       limit: String(limit),
@@ -48,9 +47,9 @@ export class HuggingFaceService extends EventEmitter {
     }));
   }
 
-  /** List GGUF files in a HuggingFace repository */
+  /** List files in a HuggingFace repository, sorted by size descending */
   async listModelFiles(repo: string): Promise<HuggingFaceFile[]> {
-    const url = `${HF_API_BASE}/models/${repo}/tree/main`;
+    const url = `${HF_API_BASE}/models/${repo}/tree/main?recursive=true`;
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to list files for ${repo}: ${response.status}`);
@@ -64,19 +63,17 @@ export class HuggingFaceService extends EventEmitter {
     }>;
 
     return files
-      .filter((f) => {
-        const name = f.rfilename ?? f.path ?? '';
-        return name.endsWith('.gguf') && f.type !== 'directory';
-      })
+      .filter((f) => f.type !== 'directory')
       .map((f) => ({
         filename: f.rfilename ?? f.path ?? '',
         sizeBytes: f.size ?? 0,
         repo,
-      }));
+      }))
+      .sort((a, b) => b.sizeBytes - a.sizeBytes);
   }
 
   /**
-   * Download a GGUF model file from HuggingFace.
+   * Download a model file from HuggingFace.
    * Emits 'progress' events with DownloadProgress updates.
    * Returns the local file path on success.
    */
@@ -88,8 +85,8 @@ export class HuggingFaceService extends EventEmitter {
     const downloadId = `${repo}/${filename}`;
     const url = `${HF_DOWNLOAD_BASE}/${repo}/resolve/main/${filename}`;
     const repoDir = path.join(destDir, repo.replace('/', '__'));
-    await fsp.mkdir(repoDir, { recursive: true });
     const destPath = path.join(repoDir, filename);
+    await fsp.mkdir(path.dirname(destPath), { recursive: true });
 
     // Check for partial download to resume
     let startByte = 0;

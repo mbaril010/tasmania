@@ -4,7 +4,7 @@ import { getModelsDir } from '../store/AppStore';
 import type { LocalModel } from '../../shared/types';
 
 /**
- * Manages locally stored GGUF models — listing, deletion, metadata parsing.
+ * Manages locally stored models — listing, deletion, metadata parsing.
  */
 export class ModelService {
   /** Ensure the models directory exists */
@@ -14,10 +14,46 @@ export class ModelService {
     return dir;
   }
 
-  /** List all locally downloaded GGUF models */
+  /** List all locally downloaded models */
   async listLocalModels(): Promise<LocalModel[]> {
     const modelsDir = await this.ensureModelsDir();
     const models: LocalModel[] = [];
+
+    const MODEL_EXTENSIONS = ['.gguf', '.safetensors', '.bin', '.pt', '.pth', '.onnx', '.ggml'];
+    const SKIP_FILES = new Set(['tokenizer.model']);
+
+    const scanDir = async (dir: string, repo: string) => {
+      const entries = await fsp.readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const entryPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          await scanDir(entryPath, repo);
+          continue;
+        }
+        if (SKIP_FILES.has(entry.name)) continue;
+        const ext = MODEL_EXTENSIONS.find((e) => entry.name.endsWith(e));
+        if (!ext) continue;
+
+        const fileStat = await fsp.stat(entryPath);
+
+        // Parse quantization from filename (e.g., Q4_K_M, Q5_K_S, Q8_0)
+        const quantMatch = entry.name.match(/[.-](Q\d[_A-Z0-9]*)/i);
+        // Parse parameter count from filename (e.g., 3B, 7B, 13B)
+        const paramMatch = entry.name.match(/(\d+\.?\d*)[Bb]/);
+
+        models.push({
+          name: entry.name.replace(ext, '').replace(/-/g, ' '),
+          filename: entry.name,
+          path: entryPath,
+          sizeBytes: fileStat.size,
+          repo,
+          quantization: quantMatch?.[1] ?? null,
+          parameters: paramMatch ? `${paramMatch[1]}B` : null,
+          architecture: null,
+          addedAt: fileStat.mtimeMs,
+        });
+      }
+    };
 
     try {
       const repoDirs = await fsp.readdir(modelsDir);
@@ -27,30 +63,7 @@ export class ModelService {
         const stat = await fsp.stat(repoDirPath);
         if (!stat.isDirectory()) continue;
 
-        const files = await fsp.readdir(repoDirPath);
-        for (const file of files) {
-          if (!file.endsWith('.gguf')) continue;
-
-          const filePath = path.join(repoDirPath, file);
-          const fileStat = await fsp.stat(filePath);
-
-          // Parse quantization from filename (e.g., Q4_K_M, Q5_K_S, Q8_0)
-          const quantMatch = file.match(/[.-](Q\d[_A-Z0-9]*)/i);
-          // Parse parameter count from filename (e.g., 3B, 7B, 13B)
-          const paramMatch = file.match(/(\d+\.?\d*)[Bb]/);
-
-          models.push({
-            name: file.replace('.gguf', '').replace(/-/g, ' '),
-            filename: file,
-            path: filePath,
-            sizeBytes: fileStat.size,
-            repo: repoDir.replace('__', '/'),
-            quantization: quantMatch?.[1] ?? null,
-            parameters: paramMatch ? `${paramMatch[1]}B` : null,
-            architecture: null,
-            addedAt: fileStat.mtimeMs,
-          });
-        }
+        await scanDir(repoDirPath, repoDir.replace('__', '/'));
       }
     } catch (err) {
       // Directory might not exist yet or be empty

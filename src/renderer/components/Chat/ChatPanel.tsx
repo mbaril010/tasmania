@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import { useChatSessions } from '../../contexts/ChatSessionContext';
 import Button from '../Common/Button';
+import LLMServerControl from '../Common/LLMServerControl';
 import type { ChatMessage } from '../../../shared/types';
 
 const MessageBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
@@ -130,18 +131,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
     ? 'Ask a coding question to get started.'
     : 'Send a message to start chatting.';
 
-  if (!isRunning) {
-    return (
-      <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
-        <p style={{ fontSize: '0.9rem' }}>
-          Start the server above to {mode === 'code' ? 'use the code assistant' : 'chat with your model'}.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+      <LLMServerControl />
       {/* Message list */}
       <div
         style={{
@@ -173,7 +165,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          disabled={isLoading}
+          disabled={isLoading || !isRunning}
           style={{
             flex: 1,
             padding: '10px 14px',
@@ -186,7 +178,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
             outline: 'none',
           }}
         />
-        <Button onClick={sendMessage} disabled={isLoading || !input.trim()}>
+        <Button onClick={sendMessage} disabled={isLoading || !isRunning || !input.trim()}>
           {isLoading ? 'Sending...' : 'Send'}
         </Button>
       </div>

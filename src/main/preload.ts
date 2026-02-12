@@ -7,7 +7,10 @@ import type {
   DownloadProgress,
   HuggingFaceFile,
   HuggingFaceModel,
+  ImageGenerationRequest,
+  ImageGenerationResult,
   LocalModel,
+  ModelResolution,
   ServerOptions,
   ServerState,
   UpdateCheckResult,
@@ -129,6 +132,39 @@ const api = {
       const handler = (_event: Electron.IpcRendererEvent, sessionId: string) => callback(sessionId);
       ipcRenderer.on(IPC.TERMINAL_EXIT, handler);
       return () => ipcRenderer.removeListener(IPC.TERMINAL_EXIT, handler);
+    },
+  },
+
+  // ── Image Generation ──
+  image: {
+    resolveModel: (modelPath: string): Promise<ModelResolution> =>
+      ipcRenderer.invoke(IPC.IMAGE_RESOLVE_MODEL, modelPath),
+
+    start: (modelPath: string, options?: Partial<ServerOptions>): Promise<void> =>
+      ipcRenderer.invoke(IPC.IMAGE_START, modelPath, options),
+
+    stop: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.IMAGE_STOP),
+
+    getStatus: (): Promise<ServerState> =>
+      ipcRenderer.invoke(IPC.IMAGE_STATUS),
+
+    getLogs: (): Promise<string[]> =>
+      ipcRenderer.invoke(IPC.IMAGE_LOGS),
+
+    generate: (params: ImageGenerationRequest): Promise<ImageGenerationResult> =>
+      ipcRenderer.invoke(IPC.IMAGE_GENERATE, params),
+
+    onStatusChanged: (callback: (state: ServerState) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: ServerState) => callback(state);
+      ipcRenderer.on(IPC.IMAGE_STATUS_CHANGED, handler);
+      return () => ipcRenderer.removeListener(IPC.IMAGE_STATUS_CHANGED, handler);
+    },
+
+    onLogLine: (callback: (line: string) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, line: string) => callback(line);
+      ipcRenderer.on(IPC.IMAGE_LOG_LINE, handler);
+      return () => ipcRenderer.removeListener(IPC.IMAGE_LOG_LINE, handler);
     },
   },
 

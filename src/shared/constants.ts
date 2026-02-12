@@ -24,5 +24,11 @@ export const CONTROL_API_PORT = 3999;
 export const DEFAULT_CONTEXT_SIZE = 4096;
 export const DEFAULT_GPU_LAYERS = 99;
 
+export const SD_DEFAULT_PORT = 1234;
+export const SD_DEFAULT_STEPS = 20;
+export const SD_DEFAULT_CFG_SCALE = 7.0;
+export const SD_DEFAULT_WIDTH = 512;
+export const SD_DEFAULT_HEIGHT = 512;
+
 export const HF_API_BASE = 'https://huggingface.co/api';
 export const HF_DOWNLOAD_BASE = 'https://huggingface.co';
