@@ -25,7 +25,7 @@ const BackendsScreen: React.FC = () => {
       {/* llama.cpp — single built-in backend */}
       <Card
         style={{
-          borderColor: serverState.backend === 'llama.cpp' ? '#6366f1' : '#2a2a2a',
+          borderColor: serverState.backend === 'llama.cpp' ? '#fbbf24' : '#2a2a2a',
           marginBottom: '1.5rem',
         }}
       >
