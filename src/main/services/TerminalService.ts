@@ -3,10 +3,17 @@ import { createRequire } from 'node:module';
 import { app } from 'electron';
 import path from 'node:path';
 
-// Resolve @lydell/node-pty from the app root so it works regardless of Vite's output directory
-const appRequire = createRequire(path.join(app.getAppPath(), 'package.json'));
-// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-explicit-any
-const pty = appRequire('@lydell/node-pty') as any;
+// In dev: resolve @lydell/node-pty from project root node_modules.
+// In production: the platform-specific package (node-pty-darwin-arm64) is copied to
+// Contents/Resources/ via extraResource in forge config. We require it directly,
+// skipping the @lydell/node-pty trampoline that does require('@lydell/node-pty-<platform>').
+let pty: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+if (app.isPackaged) {
+  pty = require(path.join(process.resourcesPath, 'node-pty-darwin-arm64', 'lib', 'index.js'));
+} else {
+  const appRequire = createRequire(path.join(app.getAppPath(), 'package.json'));
+  pty = appRequire('@lydell/node-pty');
+}
 
 interface IDisposable {
   dispose(): void;

@@ -1,6 +1,6 @@
 import type { ForgeConfig } from '@electron-forge/shared-types';
 import { MakerZIP } from '@electron-forge/maker-zip';
-
+import { AutoUnpackNativesPlugin } from '@electron-forge/plugin-auto-unpack-natives';
 import { VitePlugin } from '@electron-forge/plugin-vite';
 import { FusesPlugin } from '@electron-forge/plugin-fuses';
 import { FuseV1Options, FuseVersion } from '@electron/fuses';
@@ -10,12 +10,16 @@ const config: ForgeConfig = {
     asar: true,
     name: 'Tasmania',
     icon: './assets/icons/icon',
-    extraResource: ['./binaries'],
+    extraResource: [
+      './binaries',
+      './node_modules/@lydell/node-pty-darwin-arm64',
+    ],
   },
   makers: [
     new MakerZIP({}, ['darwin']),
   ],
   plugins: [
+    new AutoUnpackNativesPlugin({}),
     new VitePlugin({
       build: [
         {
