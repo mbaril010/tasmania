@@ -104,22 +104,31 @@ const api = {
 
   // ── Terminal ──
   terminal: {
-    create: (cols: number, rows: number, customEnv?: Record<string, string>): Promise<void> =>
-      ipcRenderer.invoke(IPC.TERMINAL_CREATE, cols, rows, customEnv),
+    create: (sessionId: string, cols: number, rows: number, customEnv?: Record<string, string>): Promise<void> =>
+      ipcRenderer.invoke(IPC.TERMINAL_CREATE, sessionId, cols, rows, customEnv),
 
-    write: (data: string): Promise<void> =>
-      ipcRenderer.invoke(IPC.TERMINAL_WRITE, data),
+    write: (sessionId: string, data: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.TERMINAL_WRITE, sessionId, data),
 
-    resize: (cols: number, rows: number): Promise<void> =>
-      ipcRenderer.invoke(IPC.TERMINAL_RESIZE, cols, rows),
+    resize: (sessionId: string, cols: number, rows: number): Promise<void> =>
+      ipcRenderer.invoke(IPC.TERMINAL_RESIZE, sessionId, cols, rows),
 
-    kill: (): Promise<void> =>
-      ipcRenderer.invoke(IPC.TERMINAL_KILL),
+    kill: (sessionId: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.TERMINAL_KILL, sessionId),
 
-    onData: (callback: (data: string) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: string) => callback(data);
+    killAll: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.TERMINAL_KILL_ALL),
+
+    onData: (callback: (sessionId: string, data: string) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, sessionId: string, data: string) => callback(sessionId, data);
       ipcRenderer.on(IPC.TERMINAL_DATA, handler);
       return () => ipcRenderer.removeListener(IPC.TERMINAL_DATA, handler);
+    },
+
+    onExit: (callback: (sessionId: string) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, sessionId: string) => callback(sessionId);
+      ipcRenderer.on(IPC.TERMINAL_EXIT, handler);
+      return () => ipcRenderer.removeListener(IPC.TERMINAL_EXIT, handler);
     },
   },
 

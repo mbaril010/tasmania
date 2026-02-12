@@ -6,6 +6,7 @@ import StatusIndicator from '../components/Common/StatusIndicator';
 import ChatPanel from '../components/Chat/ChatPanel';
 import SessionSidebar from '../components/Chat/SessionSidebar';
 import TerminalPanel from '../components/Terminal/TerminalPanel';
+import TerminalSessionSidebar from '../components/Terminal/TerminalSessionSidebar';
 
 type ChatTab = 'chat' | 'code';
 
@@ -188,12 +189,19 @@ const HomeScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Code tab: always rendered once created, toggled via display */}
-        <div style={{ display: activeTab === 'code' ? 'block' : 'none' }}>
+        {/* Code tab: sidebar + terminal panel, always rendered once created, toggled via display */}
+        <div style={{ display: activeTab === 'code' ? 'flex' : 'none', flex: 1 }}>
           {terminalCreated
-            ? <TerminalPanel />
+            ? (
+              <>
+                <TerminalSessionSidebar />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 12 }}>
+                  <TerminalPanel />
+                </div>
+              </>
+            )
             : (
-              <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#666', width: '100%' }}>
                 <p style={{ fontSize: '0.9rem' }}>
                   Start the server above to use Claude Code.
                 </p>
