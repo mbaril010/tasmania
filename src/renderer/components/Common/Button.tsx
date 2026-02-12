@@ -19,8 +19,8 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: 'inherit',
   },
   primary: {
-    background: '#6366f1',
-    color: '#fff',
+    background: '#fbbf24',
+    color: '#1a1a1a',
   },
   secondary: {
     background: '#252525',

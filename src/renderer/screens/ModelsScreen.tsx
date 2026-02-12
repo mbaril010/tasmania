@@ -81,7 +81,7 @@ const LocalModelsTab: React.FC = () => {
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <Tag>{formatBytes(model.sizeBytes)}</Tag>
-              {model.quantization && <Tag color="#6366f1">{model.quantization}</Tag>}
+              {model.quantization && <Tag color="#fbbf24">{model.quantization}</Tag>}
               {model.parameters && <Tag color="#f59e0b">{model.parameters}</Tag>}
             </div>
           </div>
@@ -317,7 +317,7 @@ const DownloadsTab: React.FC = () => {
                   style={{
                     height: '100%',
                     width: `${(dl.downloadedBytes / dl.totalBytes) * 100}%`,
-                    background: '#6366f1',
+                    background: '#fbbf24',
                     borderRadius: 2,
                     transition: 'width 0.3s ease',
                   }}
