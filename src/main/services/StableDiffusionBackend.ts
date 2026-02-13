@@ -38,9 +38,14 @@ const ARCH_COMPANIONS: Record<ImageModelArch, CompanionSpec[]> = {
   sd1: [],
   sdxl: [],
   flux: [
-    { role: 'diffusion_model', flag: '--diffusion-model', required: true, patterns: [/(?:flux|z[_\-.]?image).*\.(gguf|safetensors)$/i] },
+    { role: 'diffusion_model', flag: '--diffusion-model', required: true, patterns: [/flux.*\.(gguf|safetensors)$/i] },
     { role: 't5xxl', flag: '--t5xxl', required: true, patterns: [/t5xxl.*\.(gguf|safetensors)$/i] },
     { role: 'clip_l', flag: '--clip_l', required: true, patterns: [/clip_l.*\.(gguf|safetensors)$/i] },
+    { role: 'vae', flag: '--vae', required: true, patterns: [/(?:ae|vae).*\.(gguf|safetensors)$/i] },
+  ],
+  z_image: [
+    { role: 'diffusion_model', flag: '--diffusion-model', required: true, patterns: [/z[_\-.]?image.*\.(gguf|safetensors)$/i] },
+    { role: 'text_encoder', flag: '--llm', required: true, patterns: [/qwen.*\.(gguf|safetensors)$/i] },
     { role: 'vae', flag: '--vae', required: true, patterns: [/(?:ae|vae).*\.(gguf|safetensors)$/i] },
   ],
   sd3: [
@@ -59,7 +64,8 @@ const ARCH_COMPANIONS: Record<ImageModelArch, CompanionSpec[]> = {
 
 function detectArch(filename: string): ImageModelArch {
   const lower = filename.toLowerCase();
-  if (/flux|z[_\-.]?image/i.test(lower)) return 'flux';
+  if (/z[_\-.]?image/i.test(lower)) return 'z_image';
+  if (/flux/i.test(lower)) return 'flux';
   if (/sd3\.?5|sd3/i.test(lower)) return 'sd3';
   if (/chroma/i.test(lower)) return 'chroma';
   if (/sdxl|sd_xl/i.test(lower)) return 'sdxl';
@@ -231,7 +237,7 @@ export class StableDiffusionBackend extends BackendService {
         }
       }
 
-      args.push('--listen-port', String(port));
+      args.push('--listen-port', String(port), '--verbose');
 
       // For single-file models whose arch couldn't be detected from the filename,
       // fall back to --diffusion-model if -m fails with a version-detection error.
@@ -248,6 +254,7 @@ export class StableDiffusionBackend extends BackendService {
             await this.processManager.start(binaryPath, [
               '--diffusion-model', modelPath,
               '--listen-port', String(port),
+              '--verbose',
             ], startOpts);
           } else {
             throw firstErr;
@@ -294,7 +301,7 @@ export class StableDiffusionBackend extends BackendService {
   }
 
   getApiEndpoint(): string {
-    return `http://localhost:${this.state.port}/v1`;
+    return `http://127.0.0.1:${this.state.port}/v1`;
   }
 
   getLogs(): string[] {

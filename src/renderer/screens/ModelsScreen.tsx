@@ -116,6 +116,7 @@ const HuggingFaceBrowserTab: React.FC = () => {
   const [repoFiles, setRepoFiles] = useState<HuggingFaceFile[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [downloading, setDownloading] = useState<Set<string>>(new Set());
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
 
   const handleSearch = useCallback(async () => {
     if (!query.trim()) return;
@@ -129,6 +130,7 @@ const HuggingFaceBrowserTab: React.FC = () => {
   }, [query]);
 
   const handleExpand = async (repoId: string) => {
+    setSelectedFiles(new Set());
     if (expandedRepo === repoId) {
       setExpandedRepo(null);
       return;
@@ -141,6 +143,25 @@ const HuggingFaceBrowserTab: React.FC = () => {
     } finally {
       setLoadingFiles(false);
     }
+  };
+
+  const toggleFileSelection = (filename: string) => {
+    setSelectedFiles((prev) => {
+      const next = new Set(prev);
+      if (next.has(filename)) {
+        next.delete(filename);
+      } else {
+        next.add(filename);
+      }
+      return next;
+    });
+  };
+
+  const handleDownloadSelected = (repo: string) => {
+    for (const filename of selectedFiles) {
+      handleDownload(repo, filename);
+    }
+    setSelectedFiles(new Set());
   };
 
   const handleDownload = async (repo: string, filename: string) => {
@@ -222,9 +243,51 @@ const HuggingFaceBrowserTab: React.FC = () => {
                   <div style={{ color: '#666', fontSize: '0.85rem' }}>No files found in this repo.</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {/* Batch action bar */}
+                    {selectedFiles.size > 0 && (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px 12px',
+                        background: '#1a2744',
+                        borderRadius: 6,
+                        fontSize: '0.8rem',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <span style={{ color: '#60a5fa' }}>
+                            {selectedFiles.size} file{selectedFiles.size > 1 ? 's' : ''} selected ({formatBytes(
+                              repoFiles.filter(f => selectedFiles.has(f.filename)).reduce((sum, f) => sum + f.sizeBytes, 0)
+                            )})
+                          </span>
+                          <button
+                            onClick={() => setSelectedFiles(new Set(repoFiles.map(f => f.filename)))}
+                            style={{ background: 'none', border: 'none', color: '#60a5fa', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'inherit', padding: 0, textDecoration: 'underline' }}
+                          >
+                            Select All
+                          </button>
+                          <button
+                            onClick={() => setSelectedFiles(new Set())}
+                            style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'inherit', padding: 0, textDecoration: 'underline' }}
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadSelected(model.id);
+                          }}
+                        >
+                          Download Selected
+                        </Button>
+                      </div>
+                    )}
                     {repoFiles.map((file) => {
                       const key = `${model.id}/${file.filename}`;
                       const isDownloading = downloading.has(key);
+                      const isSelected = selectedFiles.has(file.filename);
                       return (
                         <div
                           key={file.filename}
@@ -233,13 +296,22 @@ const HuggingFaceBrowserTab: React.FC = () => {
                             justifyContent: 'space-between',
                             alignItems: 'center',
                             padding: '6px 10px',
-                            background: '#252525',
+                            background: isSelected ? '#1a2744' : '#252525',
                             borderRadius: 6,
                           }}
                         >
-                          <div>
-                            <div style={{ fontSize: '0.85rem', fontFamily: 'monospace' }}>{file.filename}</div>
-                            <div style={{ fontSize: '0.75rem', color: '#666' }}>{formatBytes(file.sizeBytes)}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleFileSelection(file.filename)}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ accentColor: '#fbbf24', cursor: 'pointer', width: 16, height: 16 }}
+                            />
+                            <div>
+                              <div style={{ fontSize: '0.85rem', fontFamily: 'monospace' }}>{file.filename}</div>
+                              <div style={{ fontSize: '0.75rem', color: '#666' }}>{formatBytes(file.sizeBytes)}</div>
+                            </div>
                           </div>
                           <Button
                             size="sm"

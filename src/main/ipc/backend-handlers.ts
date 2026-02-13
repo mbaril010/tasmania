@@ -3,6 +3,7 @@ import { IPC } from '../../shared/ipc-channels';
 import { BackendService } from '../services/BackendService';
 import { LlamaCppBackend } from '../services/LlamaCppBackend';
 import { getSettings } from '../store/AppStore';
+import { getImageBackend } from './image-handlers';
 import type { BackendInfo, BackendType, ServerOptions } from '../../shared/types';
 
 const backend = new LlamaCppBackend();
@@ -28,9 +29,21 @@ export function getBackends(): Record<string, BackendService> {
 }
 
 export function registerBackendHandlers() {
+  // Register event forwarding once (not per start) to avoid listener leaks
+  backend.events.on('log', (line: unknown) => sendToRenderer(IPC.BACKEND_LOG_LINE, line));
+  backend.events.on('exit', () => sendToRenderer(IPC.BACKEND_STATUS_CHANGED, backend.getServerState()));
+
   ipcMain.handle(IPC.BACKEND_DETECT, async () => {
-    const info = await backend.detect();
-    return { 'llama.cpp': info } as Record<string, BackendInfo>;
+    const llamaInfo = await backend.detect();
+    const result: Record<string, BackendInfo> = { 'llama.cpp': llamaInfo };
+
+    const imageBackend = getImageBackend();
+    if (imageBackend) {
+      const sdInfo = await imageBackend.detect();
+      result['stable-diffusion'] = sdInfo;
+    }
+
+    return result;
   });
 
   ipcMain.handle(
@@ -49,9 +62,6 @@ export function registerBackendHandlers() {
 
       await backend.startServer(modelPath, mergedOptions);
       activeBackend = backend;
-
-      backend.events.on('log', (line: unknown) => sendToRenderer(IPC.BACKEND_LOG_LINE, line));
-      backend.events.on('exit', () => sendToRenderer(IPC.BACKEND_STATUS_CHANGED, backend.getServerState()));
 
       sendToRenderer(IPC.BACKEND_STATUS_CHANGED, backend.getServerState());
     }

@@ -19,6 +19,10 @@ interface AppContextValue {
   startServer: (backend: BackendType, modelPath: string) => Promise<void>;
   stopServer: () => Promise<void>;
 
+  // Image backend state
+  imageServerState: ServerState;
+  imageServerLogs: string[];
+
   // Model state
   models: LocalModel[];
   downloads: DownloadProgress[];
@@ -60,6 +64,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [backends, setBackends] = useState<Record<BackendType, BackendInfo> | null>(null);
   const [serverState, setServerState] = useState<ServerState>(defaultServerState);
   const [serverLogs, setServerLogs] = useState<string[]>([]);
+  const [imageServerState, setImageServerState] = useState<ServerState>(defaultServerState);
+  const [imageServerLogs, setImageServerLogs] = useState<string[]>([]);
   const [models, setModels] = useState<LocalModel[]>([]);
   const [downloads, setDownloads] = useState<DownloadProgress[]>([]);
   const [settings, setSettingsState] = useState<AppSettings | null>(null);
@@ -80,6 +86,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     api.getSettings().then(setSettingsState);
     api.getSystemInfo().then(setSystemInfo);
     api.getServerLogs().then(setServerLogs);
+    api.image.getStatus().then(setImageServerState);
+    api.image.getLogs().then(setImageServerLogs);
 
     // Subscribe to events
     const unsub1 = api.onServerStatusChanged((state) => {
@@ -111,7 +119,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setUpdateInfo(info);
     });
 
-    cleanupRef.current = [unsub1, unsub2, unsub3, unsub4];
+    const unsub5 = api.image.onStatusChanged((state) => {
+      setImageServerState(state);
+    });
+
+    const unsub6 = api.image.onLogLine((line) => {
+      setImageServerLogs((prev) => [...prev.slice(-499), line]);
+    });
+
+    cleanupRef.current = [unsub1, unsub2, unsub3, unsub4, unsub5, unsub6];
 
     return () => {
       cleanupRef.current.forEach((fn) => fn());
@@ -178,6 +194,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         detectBackends,
         startServer,
         stopServer,
+        imageServerState,
+        imageServerLogs,
         models,
         downloads,
         refreshModels,

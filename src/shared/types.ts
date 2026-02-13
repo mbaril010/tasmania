@@ -71,9 +71,9 @@ export interface DownloadProgress {
 
 // ── Image Model Architecture Types ──
 
-export type ImageModelArch = 'sd1' | 'sdxl' | 'flux' | 'sd3' | 'chroma';
+export type ImageModelArch = 'sd1' | 'sdxl' | 'flux' | 'sd3' | 'chroma' | 'z_image';
 
-export type CompanionRole = 'diffusion_model' | 't5xxl' | 'clip_l' | 'clip_g' | 'vae';
+export type CompanionRole = 'diffusion_model' | 't5xxl' | 'clip_l' | 'clip_g' | 'vae' | 'text_encoder';
 
 export interface CompanionFileStatus {
   role: CompanionRole;

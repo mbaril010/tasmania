@@ -4,38 +4,43 @@ import Card from '../components/Common/Card';
 import Button from '../components/Common/Button';
 import StatusIndicator from '../components/Common/StatusIndicator';
 
+type LogTab = 'llama.cpp' | 'stable-diffusion';
+
 const BackendsScreen: React.FC = () => {
-  const { backends, serverState, serverLogs, detectBackends } = useApp();
+  const { backends, serverState, serverLogs, imageServerState, imageServerLogs, detectBackends } = useApp();
+  const [logTab, setLogTab] = useState<LogTab>('llama.cpp');
 
   useEffect(() => {
     detectBackends();
   }, [detectBackends]);
 
-  const info = backends?.['llama.cpp'];
+  const llamaInfo = backends?.['llama.cpp'];
+  const sdInfo = backends?.['stable-diffusion'];
+
+  const isLlamaActive = serverState.status !== 'stopped';
+  const isImageActive = imageServerState.status !== 'stopped';
 
   return (
     <div style={{ padding: '2rem', height: '100%', overflow: 'auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Backend</h2>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Backends</h2>
         <Button variant="secondary" size="sm" onClick={() => detectBackends()}>
           Re-detect
         </Button>
       </div>
 
-      {/* llama.cpp — single built-in backend */}
+      {/* llama.cpp */}
       <Card
         style={{
-          borderColor: serverState.backend === 'llama.cpp' ? '#fbbf24' : '#2a2a2a',
-          marginBottom: '1.5rem',
+          borderColor: isLlamaActive ? '#fbbf24' : '#2a2a2a',
+          marginBottom: '1rem',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
               <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>llama.cpp</span>
-              {serverState.backend === 'llama.cpp' && (
-                <StatusIndicator status={serverState.status} />
-              )}
+              {isLlamaActive && <StatusIndicator status={serverState.status} />}
             </div>
             <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: 8 }}>
               High-performance C/C++ LLM inference engine
@@ -46,25 +51,85 @@ const BackendsScreen: React.FC = () => {
               fontSize: '0.75rem',
               padding: '3px 10px',
               borderRadius: 6,
-              background: info?.installed ? '#16532e' : '#3b1a1a',
-              color: info?.installed ? '#4ade80' : '#f87171',
+              background: llamaInfo?.installed ? '#16532e' : '#3b1a1a',
+              color: llamaInfo?.installed ? '#4ade80' : '#f87171',
               fontWeight: 500,
             }}
           >
-            {info?.installed ? 'Built-in' : 'Missing'}
+            {llamaInfo?.installed ? 'Built-in' : 'Missing'}
           </span>
         </div>
 
-        {info?.version && (
+        {llamaInfo?.version && (
           <div style={{ fontSize: '0.8rem', color: '#555' }}>
-            Version: {info.version}
+            Version: {llamaInfo.version}
+          </div>
+        )}
+      </Card>
+
+      {/* stable-diffusion */}
+      <Card
+        style={{
+          borderColor: isImageActive ? '#fbbf24' : '#2a2a2a',
+          marginBottom: '1.5rem',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+              <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>stable-diffusion</span>
+              {isImageActive && <StatusIndicator status={imageServerState.status} />}
+            </div>
+            <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: 8 }}>
+              Image generation engine (sd.cpp)
+            </div>
+          </div>
+          <span
+            style={{
+              fontSize: '0.75rem',
+              padding: '3px 10px',
+              borderRadius: 6,
+              background: sdInfo?.installed ? '#16532e' : '#3b1a1a',
+              color: sdInfo?.installed ? '#4ade80' : '#f87171',
+              fontWeight: 500,
+            }}
+          >
+            {sdInfo?.installed ? 'Built-in' : 'Missing'}
+          </span>
+        </div>
+
+        {sdInfo?.version && (
+          <div style={{ fontSize: '0.8rem', color: '#555' }}>
+            Version: {sdInfo.version}
           </div>
         )}
       </Card>
 
       {/* Server Logs */}
       <Card title="Server Logs">
-        <LogViewer logs={serverLogs} />
+        <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
+          {(['llama.cpp', 'stable-diffusion'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setLogTab(tab)}
+              style={{
+                padding: '6px 16px',
+                fontSize: '0.8rem',
+                fontWeight: logTab === tab ? 600 : 400,
+                background: logTab === tab ? '#252525' : 'transparent',
+                color: logTab === tab ? '#e0e0e0' : '#666',
+                border: '1px solid #333',
+                borderBottom: logTab === tab ? '1px solid #252525' : '1px solid #333',
+                borderRadius: tab === 'llama.cpp' ? '6px 0 0 0' : '0 6px 0 0',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+        <LogViewer logs={logTab === 'llama.cpp' ? serverLogs : imageServerLogs} />
       </Card>
     </div>
   );

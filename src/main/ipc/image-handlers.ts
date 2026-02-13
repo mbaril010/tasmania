@@ -13,7 +13,15 @@ function sendToRenderer(channel: string, ...args: unknown[]) {
   }
 }
 
+export function getImageBackend(): StableDiffusionBackend {
+  return backend;
+}
+
 export function registerImageHandlers() {
+  // Register event forwarding once (not per start) to avoid listener leaks
+  backend.events.on('log', (line: unknown) => sendToRenderer(IPC.IMAGE_LOG_LINE, line));
+  backend.events.on('exit', () => sendToRenderer(IPC.IMAGE_STATUS_CHANGED, backend.getServerState()));
+
   ipcMain.handle(
     IPC.IMAGE_START,
     async (_event, modelPath: string, options?: Partial<ServerOptions>) => {
@@ -25,9 +33,6 @@ export function registerImageHandlers() {
       };
 
       await backend.startServer(modelPath, mergedOptions);
-
-      backend.events.on('log', (line: unknown) => sendToRenderer(IPC.IMAGE_LOG_LINE, line));
-      backend.events.on('exit', () => sendToRenderer(IPC.IMAGE_STATUS_CHANGED, backend.getServerState()));
 
       sendToRenderer(IPC.IMAGE_STATUS_CHANGED, backend.getServerState());
     }

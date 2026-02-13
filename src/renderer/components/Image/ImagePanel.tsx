@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import Button from '../Common/Button';
 import StatusIndicator from '../Common/StatusIndicator';
-import type { ServerState, ImageGenerationResult, ModelResolution } from '../../../shared/types';
+import type { ImageGenerationResult, ModelResolution } from '../../../shared/types';
 
 const IMAGE_MODEL_PATTERN = /(?:^|[_\-.\s])(sd|sdxl|flux|diffusion|stable.?diffusion|turbo|lora|z[_\-.]?image)(?=[_\-.\s]|$)/i;
 
@@ -13,19 +13,8 @@ interface GeneratedImage extends ImageGenerationResult {
 }
 
 const ImagePanel: React.FC = () => {
-  const { models, settings } = useApp();
+  const { models, settings, imageServerState: serverState } = useApp();
 
-  // Server state
-  const [serverState, setServerState] = useState<ServerState>({
-    status: 'stopped',
-    backend: null,
-    port: 0,
-    modelPath: null,
-    modelName: null,
-    pid: null,
-    error: null,
-    startedAt: null,
-  });
   const [selectedModel, setSelectedModel] = useState('');
   const [serverLoading, setServerLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -59,16 +48,12 @@ const ImagePanel: React.FC = () => {
     window.tasmania.image.resolveModel(selectedModel).then(setResolution).catch(() => setResolution(null));
   }, [selectedModel]);
 
-  // Fetch initial status + subscribe to changes
+  // Clear loading state when server state changes
   useEffect(() => {
-    window.tasmania.image.getStatus().then(setServerState);
-
-    const unsub = window.tasmania.image.onStatusChanged((state) => {
-      setServerState(state);
+    if (serverState.status !== 'starting') {
       setServerLoading(false);
-    });
-    return () => { unsub(); };
-  }, []);
+    }
+  }, [serverState.status]);
 
   const handleStart = async () => {
     if (!selectedModel) return;
