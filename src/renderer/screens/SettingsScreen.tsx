@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
 import Card from '../components/Common/Card';
 import Button from '../components/Common/Button';
@@ -7,6 +7,38 @@ const SettingsScreen: React.FC = () => {
   const { settings, updateSettings, systemInfo, updateInfo, checkForUpdates } = useApp();
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<string | null>(null);
+
+  // Local draft state for Server Defaults
+  const [draftLlama, setDraftLlama] = useState({ port: 8080, contextSize: 8192, gpuLayers: 99 });
+  const [llamaDirty, setLlamaDirty] = useState(false);
+  const [llamaSaved, setLlamaSaved] = useState(false);
+  const [llamaError, setLlamaError] = useState<string | null>(null);
+
+  // Local draft state for Image Generation
+  const [draftSD, setDraftSD] = useState({ port: 1234, defaultSteps: 20, defaultCfgScale: 7.0, defaultWidth: 512, defaultHeight: 512 });
+  const [sdDirty, setSDDirty] = useState(false);
+  const [sdSaved, setSDSaved] = useState(false);
+  const [sdError, setSDError] = useState<string | null>(null);
+
+  // Sync drafts when settings load or change externally
+  useEffect(() => {
+    if (settings) {
+      setDraftLlama({
+        port: settings.llamaCpp.port,
+        contextSize: settings.llamaCpp.contextSize,
+        gpuLayers: settings.llamaCpp.gpuLayers,
+      });
+      setDraftSD({
+        port: settings.stableDiffusion?.port ?? 1234,
+        defaultSteps: settings.stableDiffusion?.defaultSteps ?? 20,
+        defaultCfgScale: settings.stableDiffusion?.defaultCfgScale ?? 7.0,
+        defaultWidth: settings.stableDiffusion?.defaultWidth ?? 512,
+        defaultHeight: settings.stableDiffusion?.defaultHeight ?? 512,
+      });
+      setLlamaDirty(false);
+      setSDDirty(false);
+    }
+  }, [settings]);
 
   if (!settings) {
     return <div style={{ padding: '2rem', color: '#666' }}>Loading settings...</div>;
@@ -41,6 +73,30 @@ const SettingsScreen: React.FC = () => {
       setCheckingUpdate(false);
     }
     setTimeout(() => setUpdateMessage(null), 5000);
+  };
+
+  const saveLlamaSettings = async () => {
+    setLlamaError(null);
+    try {
+      await updateSettings({ llamaCpp: draftLlama });
+      setLlamaDirty(false);
+      setLlamaSaved(true);
+      setTimeout(() => setLlamaSaved(false), 2000);
+    } catch (err) {
+      setLlamaError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const saveSDSettings = async () => {
+    setSDError(null);
+    try {
+      await updateSettings({ stableDiffusion: draftSD });
+      setSDDirty(false);
+      setSDSaved(true);
+      setTimeout(() => setSDSaved(false), 2000);
+    } catch (err) {
+      setSDError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   return (
@@ -84,12 +140,11 @@ const SettingsScreen: React.FC = () => {
             <label style={labelStyle}>Port:</label>
             <input
               type="number"
-              value={settings.llamaCpp.port}
-              onChange={(e) =>
-                updateSettings({
-                  llamaCpp: { ...settings.llamaCpp, port: parseInt(e.target.value) || 8080 },
-                })
-              }
+              value={draftLlama.port}
+              onChange={(e) => {
+                setDraftLlama((d) => ({ ...d, port: parseInt(e.target.value) || 0 }));
+                setLlamaDirty(true);
+              }}
               style={inputStyle}
             />
           </div>
@@ -98,26 +153,27 @@ const SettingsScreen: React.FC = () => {
             <label style={labelStyle}>Context size:</label>
             <input
               type="number"
-              value={settings.llamaCpp.contextSize}
-              onChange={(e) =>
-                updateSettings({
-                  llamaCpp: { ...settings.llamaCpp, contextSize: parseInt(e.target.value) || 4096 },
-                })
-              }
+              value={draftLlama.contextSize}
+              onChange={(e) => {
+                setDraftLlama((d) => ({ ...d, contextSize: parseInt(e.target.value) || 0 }));
+                setLlamaDirty(true);
+              }}
               style={inputStyle}
             />
+            <div style={{ fontSize: '0.75rem', color: '#555', marginTop: 4 }}>
+              Number of tokens the model can process at once. Higher = more memory.
+            </div>
           </div>
 
           <div>
             <label style={labelStyle}>GPU layers (-ngl):</label>
             <input
               type="number"
-              value={settings.llamaCpp.gpuLayers}
-              onChange={(e) =>
-                updateSettings({
-                  llamaCpp: { ...settings.llamaCpp, gpuLayers: parseInt(e.target.value) || 99 },
-                })
-              }
+              value={draftLlama.gpuLayers}
+              onChange={(e) => {
+                setDraftLlama((d) => ({ ...d, gpuLayers: parseInt(e.target.value) || 0 }));
+                setLlamaDirty(true);
+              }}
               style={inputStyle}
             />
             <div style={{ fontSize: '0.75rem', color: '#555', marginTop: 4 }}>
@@ -136,6 +192,18 @@ const SettingsScreen: React.FC = () => {
               Auto-start server on app launch
             </label>
           </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Button onClick={saveLlamaSettings} disabled={!llamaDirty}>
+              Save
+            </Button>
+            {llamaSaved && (
+              <span style={{ fontSize: '0.8rem', color: '#4ade80' }}>Saved! Will apply on next server start.</span>
+            )}
+            {llamaError && (
+              <span style={{ fontSize: '0.8rem', color: '#f87171' }}>{llamaError}</span>
+            )}
+          </div>
         </div>
       </Card>
 
@@ -146,12 +214,11 @@ const SettingsScreen: React.FC = () => {
             <label style={labelStyle}>Port:</label>
             <input
               type="number"
-              value={settings.stableDiffusion?.port ?? 1234}
-              onChange={(e) =>
-                updateSettings({
-                  stableDiffusion: { ...settings.stableDiffusion, port: parseInt(e.target.value) || 1234 },
-                })
-              }
+              value={draftSD.port}
+              onChange={(e) => {
+                setDraftSD((d) => ({ ...d, port: parseInt(e.target.value) || 0 }));
+                setSDDirty(true);
+              }}
               style={inputStyle}
             />
           </div>
@@ -160,12 +227,11 @@ const SettingsScreen: React.FC = () => {
             <label style={labelStyle}>Default steps:</label>
             <input
               type="number"
-              value={settings.stableDiffusion?.defaultSteps ?? 20}
-              onChange={(e) =>
-                updateSettings({
-                  stableDiffusion: { ...settings.stableDiffusion, defaultSteps: parseInt(e.target.value) || 20 },
-                })
-              }
+              value={draftSD.defaultSteps}
+              onChange={(e) => {
+                setDraftSD((d) => ({ ...d, defaultSteps: parseInt(e.target.value) || 0 }));
+                setSDDirty(true);
+              }}
               style={inputStyle}
             />
           </div>
@@ -175,12 +241,11 @@ const SettingsScreen: React.FC = () => {
             <input
               type="number"
               step="0.5"
-              value={settings.stableDiffusion?.defaultCfgScale ?? 7.0}
-              onChange={(e) =>
-                updateSettings({
-                  stableDiffusion: { ...settings.stableDiffusion, defaultCfgScale: parseFloat(e.target.value) || 7.0 },
-                })
-              }
+              value={draftSD.defaultCfgScale}
+              onChange={(e) => {
+                setDraftSD((d) => ({ ...d, defaultCfgScale: parseFloat(e.target.value) || 0 }));
+                setSDDirty(true);
+              }}
               style={inputStyle}
             />
           </div>
@@ -191,12 +256,11 @@ const SettingsScreen: React.FC = () => {
               <input
                 type="number"
                 step="64"
-                value={settings.stableDiffusion?.defaultWidth ?? 512}
-                onChange={(e) =>
-                  updateSettings({
-                    stableDiffusion: { ...settings.stableDiffusion, defaultWidth: parseInt(e.target.value) || 512 },
-                  })
-                }
+                value={draftSD.defaultWidth}
+                onChange={(e) => {
+                  setDraftSD((d) => ({ ...d, defaultWidth: parseInt(e.target.value) || 0 }));
+                  setSDDirty(true);
+                }}
                 style={inputStyle}
               />
             </div>
@@ -205,15 +269,26 @@ const SettingsScreen: React.FC = () => {
               <input
                 type="number"
                 step="64"
-                value={settings.stableDiffusion?.defaultHeight ?? 512}
-                onChange={(e) =>
-                  updateSettings({
-                    stableDiffusion: { ...settings.stableDiffusion, defaultHeight: parseInt(e.target.value) || 512 },
-                  })
-                }
+                value={draftSD.defaultHeight}
+                onChange={(e) => {
+                  setDraftSD((d) => ({ ...d, defaultHeight: parseInt(e.target.value) || 0 }));
+                  setSDDirty(true);
+                }}
                 style={inputStyle}
               />
             </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Button onClick={saveSDSettings} disabled={!sdDirty}>
+              Save
+            </Button>
+            {sdSaved && (
+              <span style={{ fontSize: '0.8rem', color: '#4ade80' }}>Saved!</span>
+            )}
+            {sdError && (
+              <span style={{ fontSize: '0.8rem', color: '#f87171' }}>{sdError}</span>
+            )}
           </div>
         </div>
       </Card>

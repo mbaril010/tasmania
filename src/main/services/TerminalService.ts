@@ -30,18 +30,38 @@ interface IPty {
 export class TerminalService extends EventEmitter {
   private processes = new Map<string, IPty>();
 
+  // Only these env vars may be set from the renderer
+  private static readonly ALLOWED_ENV = new Set([
+    'ANTHROPIC_BASE_URL',
+    'ANTHROPIC_MODEL',
+    'CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC',
+    'LANG',
+    'LC_ALL',
+    'TERM',
+  ]);
+
   create(sessionId: string, cols: number, rows: number, customEnv?: Record<string, string>): void {
     // Kill existing PTY for this session if any
     this.kill(sessionId);
 
     const shell = process.env.SHELL || '/bin/zsh';
 
+    // Whitelist env vars to prevent command injection via PROMPT_COMMAND, LD_PRELOAD, etc.
+    const safeEnv: Record<string, string> = {};
+    if (customEnv) {
+      for (const [key, value] of Object.entries(customEnv)) {
+        if (TerminalService.ALLOWED_ENV.has(key) && typeof value === 'string') {
+          safeEnv[key] = value;
+        }
+      }
+    }
+
     const proc = pty.spawn(shell, ['-l'], {
       name: 'xterm-256color',
       cols,
       rows,
       cwd: process.env.HOME || '/',
-      env: { ...process.env, ...customEnv } as Record<string, string>,
+      env: { ...process.env, ...safeEnv } as Record<string, string>,
     });
 
     this.processes.set(sessionId, proc);

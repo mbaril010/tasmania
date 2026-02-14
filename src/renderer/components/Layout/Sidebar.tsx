@@ -22,7 +22,7 @@ interface Props {
 }
 
 const Sidebar: React.FC<Props> = ({ activeScreen, onNavigate }) => {
-  const { serverState } = useApp();
+  const { serverState, imageServerState } = useApp();
 
   return (
     <nav
@@ -32,12 +32,13 @@ const Sidebar: React.FC<Props> = ({ activeScreen, onNavigate }) => {
         borderRight: '1px solid #222',
         display: 'flex',
         flexDirection: 'column',
-        paddingTop: 52, // space for traffic lights
         flexShrink: 0,
       }}
     >
+      {/* Drag region above traffic lights */}
+      <div style={{ height: 52, flexShrink: 0, WebkitAppRegion: 'drag' } as React.CSSProperties} />
       {/* App title */}
-      <div style={{ padding: '0 20px 20px', WebkitAppRegion: 'drag' as unknown as string }}>
+      <div style={{ padding: '0 20px 20px' }}>
         <h1 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#e0e0e0' }}>
           Tasmania
         </h1>
@@ -66,8 +67,8 @@ const Sidebar: React.FC<Props> = ({ activeScreen, onNavigate }) => {
                 fontWeight: isActive ? 600 : 400,
                 transition: 'all 0.15s ease',
                 textAlign: 'left',
-                WebkitAppRegion: 'no-drag' as unknown as string,
-              }}
+                WebkitAppRegion: 'no-drag',
+              } as React.CSSProperties}
             >
               <span style={{ fontSize: '1.1rem', width: 20, textAlign: 'center' }}>{item.icon}</span>
               {item.label}
@@ -79,35 +80,57 @@ const Sidebar: React.FC<Props> = ({ activeScreen, onNavigate }) => {
       {/* Server status footer */}
       <div
         style={{
-          padding: '16px 20px',
+          padding: '12px 20px',
           borderTop: '1px solid #222',
-          WebkitAppRegion: 'no-drag' as unknown as string,
-        }}
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          WebkitAppRegion: 'no-drag',
+        } as React.CSSProperties}
       >
-        <StatusIndicator
-          status={serverState.status}
-          label={
-            serverState.status === 'running'
-              ? `Port ${serverState.port}`
-              : serverState.status === 'error'
-              ? 'Error'
-              : 'Server off'
-          }
-        />
-        {serverState.modelName && (
-          <div
-            style={{
-              fontSize: '0.75rem',
-              color: '#555',
-              marginTop: 4,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {serverState.modelName}
+        {/* LLM server */}
+        <div>
+          <div style={{ fontSize: '0.65rem', color: '#555', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            LLM
           </div>
-        )}
+          <StatusIndicator
+            status={serverState.status}
+            label={
+              serverState.status === 'running'
+                ? `Port ${serverState.port}`
+                : serverState.status === 'error'
+                ? 'Error'
+                : 'Off'
+            }
+          />
+          {serverState.modelName && (
+            <div style={{ fontSize: '0.7rem', color: '#555', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {serverState.modelName}
+            </div>
+          )}
+        </div>
+
+        {/* Image server */}
+        <div>
+          <div style={{ fontSize: '0.65rem', color: '#555', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Image
+          </div>
+          <StatusIndicator
+            status={imageServerState.status}
+            label={
+              imageServerState.status === 'running'
+                ? `Port ${imageServerState.port}`
+                : imageServerState.status === 'error'
+                ? 'Error'
+                : 'Off'
+            }
+          />
+          {imageServerState.modelName && (
+            <div style={{ fontSize: '0.7rem', color: '#555', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {imageServerState.modelName}
+            </div>
+          )}
+        </div>
       </div>
     </nav>
   );

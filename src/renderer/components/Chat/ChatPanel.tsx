@@ -43,6 +43,7 @@ const ThinkingIndicator: React.FC = () => (
 );
 
 const SYSTEM_PROMPTS: Record<string, string> = {
+  chat: 'You are a helpful assistant.',
   code: 'You are a helpful coding assistant. You help write, debug, explain, and refactor code. Always provide code examples when relevant. Use markdown code blocks with language identifiers for code snippets.',
 };
 
@@ -64,21 +65,29 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
+  const MAX_MESSAGE_LENGTH = 10_000;
+
   const sendMessage = async () => {
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
 
-    const userMessage: ChatMessage = { role: 'user', content: trimmed };
+    if (trimmed.length > MAX_MESSAGE_LENGTH) {
+      setError(`Message too long (${trimmed.length} chars). Maximum is ${MAX_MESSAGE_LENGTH}.`);
+      return;
+    }
+
+    const userMessage: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: trimmed };
     addMessage(userMessage);
     const newMessages = [...messages, userMessage];
     setInput('');
     setError(null);
     setIsLoading(true);
 
-    // Build the request messages, prepending system prompt for code mode
+    // Build the request messages, prepending system prompt
     const requestMessages: Array<{ role: string; content: string }> = [];
-    if (mode === 'code' && SYSTEM_PROMPTS.code) {
-      requestMessages.push({ role: 'system', content: SYSTEM_PROMPTS.code });
+    const systemPrompt = SYSTEM_PROMPTS[mode];
+    if (systemPrompt) {
+      requestMessages.push({ role: 'system', content: systemPrompt });
     }
     requestMessages.push(...newMessages);
 
@@ -91,7 +100,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
           body: JSON.stringify({
             model: 'local',
             messages: requestMessages,
-            max_tokens: mode === 'code' ? 1024 : 500,
+            max_tokens: mode === 'code' ? 4096 : 2048,
             temperature: mode === 'code' ? 0.3 : 0.7,
           }),
         }
@@ -102,15 +111,24 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
       }
 
       const data = (await response.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
+        choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
+        error?: { message?: string };
       };
-      const assistantContent = data.choices?.[0]?.message?.content;
 
-      if (!assistantContent) {
-        throw new Error('No response content received from model');
+      if (data.error?.message) {
+        throw new Error(`Server error: ${data.error.message}`);
       }
 
-      addMessage({ role: 'assistant', content: assistantContent });
+      const assistantContent = (data.choices?.[0]?.message?.content ?? '').trim();
+
+      if (!assistantContent) {
+        const reason = data.choices?.[0]?.finish_reason;
+        const detail = reason ? ` (finish_reason: ${reason})` : '';
+        console.warn('Empty response from model:', JSON.stringify(data));
+        throw new Error(`Model returned an empty response${detail}. Try a shorter conversation or restart the server.`);
+      }
+
+      addMessage({ id: crypto.randomUUID(), role: 'assistant', content: assistantContent });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -150,8 +168,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
             {emptyText}
           </div>
         )}
-        {messages.map((msg, i) => (
-          <MessageBubble key={i} message={msg} />
+        {messages.map((msg) => (
+          <MessageBubble key={msg.id} message={msg} />
         ))}
         {isLoading && <ThinkingIndicator />}
         <div ref={messagesEndRef} />

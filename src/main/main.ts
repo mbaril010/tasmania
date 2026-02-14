@@ -23,6 +23,8 @@ const createWindow = () => {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
     },
   });
 
@@ -54,9 +56,9 @@ registerUpdateHandlers();
 registerTerminalHandlers();
 registerImageHandlers();
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   createWindow();
-  startControlApi();
+  await startControlApi();
   checkForUpdatesOnLaunch(getSettings().autoCheckUpdates ?? true);
 });
 
@@ -73,14 +75,14 @@ app.on('activate', () => {
 // Clean up server processes on quit
 let isQuitting = false;
 app.on('before-quit', (event) => {
-  if (!isQuitting) {
-    event.preventDefault();
-    isQuitting = true;
-    stopControlApi();
-    shutdownTerminal();
-    Promise.all([shutdownImageServer(), shutdownBackends()])
-      .finally(() => app.quit());
-  }
+  if (isQuitting) return; // Cleanup done, let the quit proceed
+  event.preventDefault();
+  isQuitting = true;
+  stopControlApi();
+  shutdownTerminal();
+  Promise.all([shutdownImageServer(), shutdownBackends()])
+    .catch((err) => console.error('Shutdown error:', err))
+    .finally(() => app.quit());
 });
 
 // Declare Vite globals

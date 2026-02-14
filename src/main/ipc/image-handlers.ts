@@ -1,8 +1,18 @@
 import { ipcMain, BrowserWindow } from 'electron';
+import path from 'node:path';
 import { IPC } from '../../shared/ipc-channels';
 import { StableDiffusionBackend } from '../services/StableDiffusionBackend';
-import { getSettings } from '../store/AppStore';
+import { getSettings, getModelsDir } from '../store/AppStore';
 import type { ImageGenerationRequest, ServerOptions } from '../../shared/types';
+
+/** Validate that a model path is within the configured models directory */
+function validateModelPath(modelPath: string): void {
+  const modelsDir = getModelsDir();
+  const resolved = path.resolve(modelPath);
+  if (!resolved.startsWith(path.resolve(modelsDir))) {
+    throw new Error('Model path must be within the models directory');
+  }
+}
 
 const backend = new StableDiffusionBackend();
 
@@ -25,6 +35,8 @@ export function registerImageHandlers() {
   ipcMain.handle(
     IPC.IMAGE_START,
     async (_event, modelPath: string, options?: Partial<ServerOptions>) => {
+      validateModelPath(modelPath);
+
       const settings = getSettings();
       const mergedOptions: ServerOptions = {
         port: options?.port ?? settings.stableDiffusion.port,
@@ -56,7 +68,24 @@ export function registerImageHandlers() {
   });
 
   ipcMain.handle(IPC.IMAGE_GENERATE, async (_event, params: ImageGenerationRequest) => {
-    const endpoint = backend.getApiEndpoint();
+    // Validate generation parameters
+    if (!params || typeof params.prompt !== 'string' || params.prompt.trim().length === 0) {
+      throw new Error('Prompt is required');
+    }
+    if (params.prompt.length > 10_000) throw new Error('Prompt too long (max 10000 chars)');
+    if (!Number.isInteger(params.width) || params.width < 64 || params.width > 2048) {
+      throw new Error('Width must be 64-2048');
+    }
+    if (!Number.isInteger(params.height) || params.height < 64 || params.height > 2048) {
+      throw new Error('Height must be 64-2048');
+    }
+    if (!Number.isInteger(params.steps) || params.steps < 1 || params.steps > 150) {
+      throw new Error('Steps must be 1-150');
+    }
+    if (typeof params.cfgScale !== 'number' || params.cfgScale < 0 || params.cfgScale > 30) {
+      throw new Error('CFG scale must be 0-30');
+    }
+
     const state = backend.getServerState();
     if (state.status !== 'running') {
       throw new Error('Image server is not running');
@@ -64,19 +93,22 @@ export function registerImageHandlers() {
 
     const startTime = Date.now();
 
-    const response = await fetch(`${endpoint}/images/generations`, {
+    // Use the native /sdapi/v1/txt2img endpoint — it respects all generation
+    // parameters (steps, cfg_scale, seed, sampler_name, negative_prompt).
+    // The OpenAI-compatible /v1/images/generations endpoint ignores them.
+    const baseUrl = `http://127.0.0.1:${state.port}`;
+    const response = await fetch(`${baseUrl}/sdapi/v1/txt2img`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         prompt: params.prompt,
         negative_prompt: params.negativePrompt || '',
-        size: `${params.width}x${params.height}`,
-        n: 1,
-        response_format: 'b64_json',
-        sample_steps: params.steps,
+        width: params.width,
+        height: params.height,
+        steps: params.steps,
         cfg_scale: params.cfgScale,
         seed: params.seed ?? -1,
-        sampler: params.sampler,
+        sampler_name: params.sampler || '',
       }),
     });
 
@@ -85,11 +117,15 @@ export function registerImageHandlers() {
       throw new Error(`Image generation failed (${response.status}): ${text}`);
     }
 
-    const json = await response.json() as { data: Array<{ b64_json: string }> };
+    const json = await response.json() as { images: string[] };
     const timingMs = Date.now() - startTime;
 
+    if (!json.images || json.images.length === 0) {
+      throw new Error('No image returned from server');
+    }
+
     return {
-      b64: json.data[0].b64_json,
+      b64: json.images[0],
       seed: params.seed ?? -1,
       timingMs,
     };

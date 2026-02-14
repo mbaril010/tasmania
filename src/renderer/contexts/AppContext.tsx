@@ -50,6 +50,8 @@ const defaultServerState: ServerState = {
   pid: null,
   error: null,
   startedAt: null,
+  contextSize: null,
+  gpuLayers: null,
 };
 
 const AppContext = createContext<AppContextValue | null>(null);

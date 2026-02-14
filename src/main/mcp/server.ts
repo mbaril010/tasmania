@@ -26,24 +26,65 @@ import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
 
 const CONTROL_API = 'http://localhost:3999';
 
+// Read auth token written by the Electron app (mode 0600)
+function readApiToken(): string {
+  const tokenPath = join(
+    homedir(),
+    'Library',
+    'Application Support',
+    'Tasmania',
+    '.control-api-token',
+  );
+  try {
+    return readFileSync(tokenPath, 'utf-8').trim();
+  } catch {
+    throw new Error(
+      'Cannot read control API token. Is the Tasmania app running?'
+    );
+  }
+}
+
+let cachedToken: string | null = null;
+
+function getToken(): string {
+  if (!cachedToken) {
+    cachedToken = readApiToken();
+  }
+  return cachedToken;
+}
+
 // ── Helper: Call the Tasmania control API ──
 
-async function controlApi(path: string, options?: RequestInit): Promise<unknown> {
+async function controlApi(apiPath: string, options?: RequestInit): Promise<unknown> {
   try {
-    const response = await fetch(`${CONTROL_API}${path}`, {
+    const token = getToken();
+    const response = await fetch(`${CONTROL_API}${apiPath}`, {
       ...options,
-      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...options?.headers,
+      },
     });
     if (!response.ok) {
       const text = await response.text();
+      // If unauthorized, token may have rotated — clear cache and retry once
+      if (response.status === 401 && cachedToken) {
+        cachedToken = null;
+        return controlApi(apiPath, options);
+      }
       throw new Error(`Control API error (${response.status}): ${text}`);
     }
     return response.json();
   } catch (err) {
     if (err instanceof TypeError && (err.message.includes('fetch') || err.message.includes('ECONNREFUSED'))) {
+      cachedToken = null;
       throw new Error('Tasmania app is not running. Please start the app first.');
     }
     throw err;

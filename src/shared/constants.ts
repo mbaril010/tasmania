@@ -21,7 +21,7 @@ export const LOGS_DIR = path.join(
 export const LLAMA_CPP_DEFAULT_PORT = 8080;
 export const CONTROL_API_PORT = 3999;
 
-export const DEFAULT_CONTEXT_SIZE = 4096;
+export const DEFAULT_CONTEXT_SIZE = 32768;
 export const DEFAULT_GPU_LAYERS = 99;
 
 export const SD_DEFAULT_PORT = 1234;

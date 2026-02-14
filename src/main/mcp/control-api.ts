@@ -1,4 +1,8 @@
 import http from 'node:http';
+import crypto from 'node:crypto';
+import fsp from 'node:fs/promises';
+import path from 'node:path';
+import { app } from 'electron';
 import { getActiveBackend, setActiveBackend, getBackends } from '../ipc/backend-handlers';
 import { getModelService, getHuggingFaceService } from '../ipc/model-handlers';
 import { getSettings, getModelsDir } from '../store/AppStore';
@@ -6,30 +10,74 @@ import { CONTROL_API_PORT } from '../../shared/constants';
 import type { BackendType } from '../../shared/types';
 
 let server: http.Server | null = null;
+let apiToken: string | null = null;
+
+// Simple sliding-window rate limiter
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX_REQUESTS = 60;
+let requestTimestamps: number[] = [];
+
+function isRateLimited(): boolean {
+  const now = Date.now();
+  requestTimestamps = requestTimestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+  if (requestTimestamps.length >= RATE_LIMIT_MAX_REQUESTS) return true;
+  requestTimestamps.push(now);
+  return false;
+}
+
+/** Path to the auth token file (readable only by current user) */
+function getTokenPath(): string {
+  return path.join(app.getPath('userData'), '.control-api-token');
+}
 
 /**
  * Start the internal HTTP control API on localhost:3999
  * This allows the standalone MCP server to communicate with the Electron app.
  */
-export function startControlApi(): void {
+export async function startControlApi(): Promise<void> {
   if (server) return;
+
+  // Generate a one-time auth token and write it to a restricted file
+  apiToken = crypto.randomBytes(32).toString('hex');
+  const tokenPath = getTokenPath();
+  await fsp.writeFile(tokenPath, apiToken, { mode: 0o600 });
 
   server = http.createServer(async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
 
-    // Only allow local connections
-    if (req.socket.remoteAddress !== '127.0.0.1' && req.socket.remoteAddress !== '::1') {
+    // Only allow local connections (including IPv4-mapped IPv6)
+    const remoteAddr = req.socket.remoteAddress ?? '';
+    const isLocalhost =
+      remoteAddr === '127.0.0.1' ||
+      remoteAddr === '::1' ||
+      remoteAddr === '::ffff:127.0.0.1';
+    if (!isLocalhost) {
       res.writeHead(403);
       res.end(JSON.stringify({ error: 'Forbidden' }));
       return;
     }
 
+    // Require bearer token authentication
+    const authHeader = req.headers.authorization ?? '';
+    if (authHeader !== `Bearer ${apiToken}`) {
+      res.writeHead(401);
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+
+    // Rate limiting
+    if (isRateLimited()) {
+      res.writeHead(429);
+      res.end(JSON.stringify({ error: 'Too many requests' }));
+      return;
+    }
+
     const url = new URL(req.url ?? '/', `http://localhost:${CONTROL_API_PORT}`);
-    const path = url.pathname;
+    const route = url.pathname;
 
     try {
       // GET /api/status — Server status
-      if (path === '/api/status' && req.method === 'GET') {
+      if (route === '/api/status' && req.method === 'GET') {
         const backend = getActiveBackend();
         if (!backend) {
           res.end(JSON.stringify({ status: 'stopped', endpoint: null }));
@@ -49,27 +97,36 @@ export function startControlApi(): void {
       }
 
       // GET /api/models — List local models
-      if (path === '/api/models' && req.method === 'GET') {
+      if (route === '/api/models' && req.method === 'GET') {
         const models = await getModelService().listLocalModels();
         res.end(JSON.stringify(models));
         return;
       }
 
       // GET /api/logs — Server logs
-      if (path === '/api/logs' && req.method === 'GET') {
+      if (route === '/api/logs' && req.method === 'GET') {
         const backend = getActiveBackend();
         res.end(JSON.stringify(backend ? backend.getLogs() : []));
         return;
       }
 
       // POST /api/start — Start a server
-      if (path === '/api/start' && req.method === 'POST') {
+      if (route === '/api/start' && req.method === 'POST') {
         const body = await readBody(req);
         const { backend: backendType = 'llama.cpp', modelPath } = body as { backend?: string; modelPath: string };
 
         if (!modelPath) {
           res.writeHead(400);
           res.end(JSON.stringify({ error: 'modelPath is required' }));
+          return;
+        }
+
+        // Validate model path is within models directory
+        const modelsDir = getModelsDir();
+        const resolvedModelPath = path.resolve(modelPath);
+        if (!resolvedModelPath.startsWith(path.resolve(modelsDir))) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: 'Model path must be within the models directory' }));
           return;
         }
 
@@ -97,7 +154,7 @@ export function startControlApi(): void {
       }
 
       // POST /api/stop — Stop the server
-      if (path === '/api/stop' && req.method === 'POST') {
+      if (route === '/api/stop' && req.method === 'POST') {
         const active = getActiveBackend();
         if (active) {
           await active.stopServer();
@@ -108,13 +165,25 @@ export function startControlApi(): void {
       }
 
       // POST /api/download — Download a model from HF
-      if (path === '/api/download' && req.method === 'POST') {
+      if (route === '/api/download' && req.method === 'POST') {
         const body = await readBody(req);
         const { repo, filename } = body as { repo: string; filename: string };
 
         if (!repo || !filename) {
           res.writeHead(400);
           res.end(JSON.stringify({ error: 'repo and filename are required' }));
+          return;
+        }
+
+        // Validate repo format and filename to prevent path traversal
+        if (!/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.\-]+$/.test(repo)) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: 'Invalid repository format' }));
+          return;
+        }
+        if (!/^[a-zA-Z0-9_.\-]+$/.test(filename)) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: 'Invalid filename' }));
           return;
         }
 
@@ -148,12 +217,26 @@ export function stopControlApi(): void {
     server.close();
     server = null;
   }
+  // Clean up token file
+  apiToken = null;
+  fsp.unlink(getTokenPath()).catch(() => {});
 }
+
+const MAX_BODY_SIZE = 1024 * 1024; // 1 MB
 
 function readBody(req: http.IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
     let data = '';
-    req.on('data', (chunk) => (data += chunk));
+    let size = 0;
+    req.on('data', (chunk: Buffer | string) => {
+      size += typeof chunk === 'string' ? chunk.length : chunk.byteLength;
+      if (size > MAX_BODY_SIZE) {
+        req.destroy();
+        reject(new Error('Request body too large'));
+        return;
+      }
+      data += chunk;
+    });
     req.on('end', () => {
       try {
         resolve(data ? JSON.parse(data) : {});

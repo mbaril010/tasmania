@@ -1,7 +1,7 @@
 {
   "name": "tasmania",
   "productName": "Tasmania",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Run local LLMs easily — batteries included",
   "main": ".vite/build/main.js",
   "scripts": {

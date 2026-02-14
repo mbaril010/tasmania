@@ -1,10 +1,20 @@
 import { ipcMain, BrowserWindow } from 'electron';
+import path from 'node:path';
 import { IPC } from '../../shared/ipc-channels';
 import { BackendService } from '../services/BackendService';
 import { LlamaCppBackend } from '../services/LlamaCppBackend';
-import { getSettings } from '../store/AppStore';
+import { getSettings, getModelsDir } from '../store/AppStore';
 import { getImageBackend } from './image-handlers';
 import type { BackendInfo, BackendType, ServerOptions } from '../../shared/types';
+
+/** Validate that a model path is within the configured models directory */
+function validateModelPath(modelPath: string): void {
+  const modelsDir = getModelsDir();
+  const resolved = path.resolve(modelPath);
+  if (!resolved.startsWith(path.resolve(modelsDir))) {
+    throw new Error('Model path must be within the models directory');
+  }
+}
 
 const backend = new LlamaCppBackend();
 let activeBackend: BackendService | null = null;
@@ -49,6 +59,8 @@ export function registerBackendHandlers() {
   ipcMain.handle(
     IPC.BACKEND_START,
     async (_event, _backendType: BackendType, modelPath: string, options?: Partial<ServerOptions>) => {
+      validateModelPath(modelPath);
+
       if (activeBackend) {
         await activeBackend.stopServer();
       }
@@ -88,6 +100,8 @@ export function registerBackendHandlers() {
       pid: null,
       error: null,
       startedAt: null,
+      contextSize: null,
+      gpuLayers: null,
     };
   });
 

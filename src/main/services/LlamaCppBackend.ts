@@ -32,6 +32,8 @@ export class LlamaCppBackend extends BackendService {
     pid: null,
     error: null,
     startedAt: null,
+    contextSize: null,
+    gpuLayers: null,
   };
 
   async detect(): Promise<BackendInfo> {
@@ -83,6 +85,8 @@ export class LlamaCppBackend extends BackendService {
       pid: null,
       error: null,
       startedAt: null,
+      contextSize,
+      gpuLayers,
     };
 
     try {
@@ -122,6 +126,8 @@ export class LlamaCppBackend extends BackendService {
       pid: null,
       error: null,
       startedAt: null,
+      contextSize: null,
+      gpuLayers: null,
     };
   }
 
@@ -130,7 +136,7 @@ export class LlamaCppBackend extends BackendService {
   }
 
   getApiEndpoint(): string {
-    return `http://localhost:${this.state.port}/v1`;
+    return `http://127.0.0.1:${this.state.port}/v1`;
   }
 
   getLogs(): string[] {

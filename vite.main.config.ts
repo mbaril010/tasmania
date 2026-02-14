@@ -17,6 +17,7 @@ export default defineConfig({
     },
   ],
   build: {
+    sourcemap: process.env.NODE_ENV === 'development',
     rollupOptions: {
       external: [/^@lydell\/node-pty/],
     },

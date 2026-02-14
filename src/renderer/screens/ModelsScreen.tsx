@@ -313,16 +313,28 @@ const HuggingFaceBrowserTab: React.FC = () => {
                               <div style={{ fontSize: '0.75rem', color: '#666' }}>{formatBytes(file.sizeBytes)}</div>
                             </div>
                           </div>
-                          <Button
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDownload(model.id, file.filename);
-                            }}
-                            disabled={isDownloading}
-                          >
-                            {isDownloading ? 'Downloading...' : 'Download'}
-                          </Button>
+                          {isDownloading ? (
+                            <Button
+                              size="sm"
+                              variant="danger"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.tasmania.cancelDownload(key);
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownload(model.id, file.filename);
+                              }}
+                            >
+                              Download
+                            </Button>
+                          )}
                         </div>
                       );
                     })}
@@ -356,30 +368,43 @@ const DownloadsTab: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
       {downloads.map((dl) => (
         <Card key={dl.id}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
             <div>
               <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{dl.filename}</div>
               <div style={{ fontSize: '0.75rem', color: '#666' }}>{dl.repo}</div>
             </div>
-            <span
-              style={{
-                fontSize: '0.75rem',
-                padding: '2px 8px',
-                borderRadius: 4,
-                background:
-                  dl.status === 'completed' ? '#16532e' :
-                  dl.status === 'error' ? '#3b1a1a' :
-                  dl.status === 'downloading' ? '#1a2744' :
-                  '#252525',
-                color:
-                  dl.status === 'completed' ? '#4ade80' :
-                  dl.status === 'error' ? '#f87171' :
-                  dl.status === 'downloading' ? '#60a5fa' :
-                  '#888',
-              }}
-            >
-              {dl.status}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {dl.status === 'downloading' && (
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => window.tasmania.cancelDownload(dl.id)}
+                >
+                  Cancel
+                </Button>
+              )}
+              <span
+                style={{
+                  fontSize: '0.75rem',
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                  background:
+                    dl.status === 'completed' ? '#16532e' :
+                    dl.status === 'error' ? '#3b1a1a' :
+                    dl.status === 'cancelled' ? '#252525' :
+                    dl.status === 'downloading' ? '#1a2744' :
+                    '#252525',
+                  color:
+                    dl.status === 'completed' ? '#4ade80' :
+                    dl.status === 'error' ? '#f87171' :
+                    dl.status === 'cancelled' ? '#f59e0b' :
+                    dl.status === 'downloading' ? '#60a5fa' :
+                    '#888',
+                }}
+              >
+                {dl.status}
+              </span>
+            </div>
           </div>
 
           {dl.status === 'downloading' && dl.totalBytes > 0 && (

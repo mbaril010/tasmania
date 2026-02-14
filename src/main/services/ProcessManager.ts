@@ -2,6 +2,7 @@ import { ChildProcess, spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 
 const MAX_LOG_LINES = 500;
+const MAX_LOG_LINE_LENGTH = 10_000;
 
 export interface ProcessInfo {
   pid: number;
@@ -149,7 +150,10 @@ export class ProcessManager extends EventEmitter {
 
   private pushLog(line: string) {
     const timestamp = new Date().toISOString().slice(11, 19);
-    this.logs.push(`[${timestamp}] ${line}`);
+    const truncated = line.length > MAX_LOG_LINE_LENGTH
+      ? line.slice(0, MAX_LOG_LINE_LENGTH) + '... [truncated]'
+      : line;
+    this.logs.push(`[${timestamp}] ${truncated}`);
     if (this.logs.length > MAX_LOG_LINES) {
       this.logs.shift();
     }

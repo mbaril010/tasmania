@@ -20,6 +20,8 @@ export interface ServerState {
   pid: number | null;
   error: string | null;
   startedAt: number | null;
+  contextSize: number | null;
+  gpuLayers: number | null;
 }
 
 export interface ServerOptions {
@@ -153,6 +155,7 @@ export interface UpdateCheckResult {
 // ── Chat Types ──
 
 export interface ChatMessage {
+  id: string;
   role: 'user' | 'assistant';
   content: string;
 }

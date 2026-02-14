@@ -6,7 +6,7 @@
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "allowJs": true,
     "jsx": "react-jsx",
-    "sourceMap": true,
+    "sourceMap": false,
     "outDir": "./dist",
     "isolatedModules": true,
     "esModuleInterop": true,

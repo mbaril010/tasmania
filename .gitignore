@@ -6,3 +6,10 @@ dist/
 .DS_Store
 binaries/
 tasks/
+
+# Secrets and environment files
+.env
+.env.*
+*.pem
+*.key
+*.crt

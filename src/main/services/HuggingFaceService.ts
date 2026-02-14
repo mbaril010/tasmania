@@ -11,6 +11,7 @@ import type { HuggingFaceModel, HuggingFaceFile, DownloadProgress } from '../../
  */
 export class HuggingFaceService extends EventEmitter {
   private activeDownloads = new Map<string, AbortController>();
+  private static readonly MAX_CONCURRENT_DOWNLOADS = 3;
 
   /** Search for models on HuggingFace */
   async searchModels(query: string, limit = 30): Promise<HuggingFaceModel[]> {
@@ -82,10 +83,30 @@ export class HuggingFaceService extends EventEmitter {
     filename: string,
     destDir: string
   ): Promise<string> {
+    // Enforce concurrent download limit
+    if (this.activeDownloads.size >= HuggingFaceService.MAX_CONCURRENT_DOWNLOADS) {
+      throw new Error(`Maximum ${HuggingFaceService.MAX_CONCURRENT_DOWNLOADS} concurrent downloads allowed`);
+    }
+
+    // Validate repo format: owner/name, alphanumeric + hyphens/underscores/dots
+    if (!/^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.\-]+$/.test(repo)) {
+      throw new Error('Invalid repository name');
+    }
+    // Validate filename: no path separators or traversal
+    if (!/^[a-zA-Z0-9_.\-]+$/.test(filename)) {
+      throw new Error('Invalid filename');
+    }
+
     const downloadId = `${repo}/${filename}`;
     const url = `${HF_DOWNLOAD_BASE}/${repo}/resolve/main/${filename}`;
     const repoDir = path.join(destDir, repo.replace('/', '__'));
     const destPath = path.join(repoDir, filename);
+
+    // Final safety check: resolved path must stay within destDir
+    if (!path.resolve(destPath).startsWith(path.resolve(destDir))) {
+      throw new Error('Invalid download path');
+    }
+
     await fsp.mkdir(path.dirname(destPath), { recursive: true });
 
     // Check for partial download to resume

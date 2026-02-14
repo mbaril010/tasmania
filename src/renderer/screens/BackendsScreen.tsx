@@ -6,13 +6,43 @@ import StatusIndicator from '../components/Common/StatusIndicator';
 
 type LogTab = 'llama.cpp' | 'stable-diffusion';
 
+function formatUptime(startedAt: number | null): string {
+  if (!startedAt) return '';
+  const seconds = Math.floor((Date.now() - startedAt) / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
+}
+
+const paramLabelStyle: React.CSSProperties = {
+  color: '#777',
+  fontSize: '0.78rem',
+};
+
+const paramValueStyle: React.CSSProperties = {
+  color: '#ccc',
+  fontSize: '0.78rem',
+  fontWeight: 500,
+};
+
 const BackendsScreen: React.FC = () => {
   const { backends, serverState, serverLogs, imageServerState, imageServerLogs, detectBackends } = useApp();
   const [logTab, setLogTab] = useState<LogTab>('llama.cpp');
+  const [, setTick] = useState(0);
 
   useEffect(() => {
     detectBackends();
   }, [detectBackends]);
+
+  // Tick every 10s to update uptime display
+  const anyRunning = serverState.status === 'running' || imageServerState.status === 'running';
+  useEffect(() => {
+    if (!anyRunning) return;
+    const id = setInterval(() => setTick((t) => t + 1), 10_000);
+    return () => clearInterval(id);
+  }, [anyRunning]);
 
   const llamaInfo = backends?.['llama.cpp'];
   const sdInfo = backends?.['stable-diffusion'];
@@ -65,6 +95,24 @@ const BackendsScreen: React.FC = () => {
             Version: {llamaInfo.version}
           </div>
         )}
+
+        {serverState.status === 'running' && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', marginTop: 10, padding: '8px 10px', background: '#1a1a1a', borderRadius: 6 }}>
+            {serverState.modelName && (
+              <div><span style={paramLabelStyle}>Model: </span><span style={paramValueStyle}>{serverState.modelName}</span></div>
+            )}
+            {serverState.contextSize != null && (
+              <div><span style={paramLabelStyle}>Context: </span><span style={paramValueStyle}>{serverState.contextSize.toLocaleString()}</span></div>
+            )}
+            {serverState.gpuLayers != null && (
+              <div><span style={paramLabelStyle}>GPU Layers: </span><span style={paramValueStyle}>{serverState.gpuLayers}</span></div>
+            )}
+            <div><span style={paramLabelStyle}>Port: </span><span style={paramValueStyle}>{serverState.port}</span></div>
+            {serverState.startedAt && (
+              <div><span style={paramLabelStyle}>Uptime: </span><span style={paramValueStyle}>{formatUptime(serverState.startedAt)}</span></div>
+            )}
+          </div>
+        )}
       </Card>
 
       {/* stable-diffusion */}
@@ -101,6 +149,18 @@ const BackendsScreen: React.FC = () => {
         {sdInfo?.version && (
           <div style={{ fontSize: '0.8rem', color: '#555' }}>
             Version: {sdInfo.version}
+          </div>
+        )}
+
+        {imageServerState.status === 'running' && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', marginTop: 10, padding: '8px 10px', background: '#1a1a1a', borderRadius: 6 }}>
+            {imageServerState.modelName && (
+              <div><span style={paramLabelStyle}>Model: </span><span style={paramValueStyle}>{imageServerState.modelName}</span></div>
+            )}
+            <div><span style={paramLabelStyle}>Port: </span><span style={paramValueStyle}>{imageServerState.port}</span></div>
+            {imageServerState.startedAt && (
+              <div><span style={paramLabelStyle}>Uptime: </span><span style={paramValueStyle}>{formatUptime(imageServerState.startedAt)}</span></div>
+            )}
           </div>
         )}
       </Card>

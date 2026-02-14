@@ -43,7 +43,18 @@ export class UpdateService extends EventEmitter {
       const isUpdateAvailable = this.compareVersions(currentVersion, latestVersion) < 0;
 
       const dmgAsset = release.assets.find((a) => a.name.endsWith('.dmg'));
-      const downloadUrl = dmgAsset?.browser_download_url ?? release.html_url;
+      let downloadUrl = dmgAsset?.browser_download_url ?? release.html_url;
+
+      // Validate download URL points to GitHub (prevent open redirect via compromised release)
+      try {
+        const parsed = new URL(downloadUrl);
+        const isGitHub = parsed.hostname === 'github.com' || parsed.hostname.endsWith('.github.com');
+        if (!isGitHub || parsed.protocol !== 'https:') {
+          downloadUrl = release.html_url;
+        }
+      } catch {
+        downloadUrl = release.html_url;
+      }
 
       const updateInfo: UpdateInfo = {
         currentVersion,

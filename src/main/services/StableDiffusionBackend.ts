@@ -118,6 +118,8 @@ export class StableDiffusionBackend extends BackendService {
     pid: null,
     error: null,
     startedAt: null,
+    contextSize: null,
+    gpuLayers: null,
   };
 
   async detect(): Promise<BackendInfo> {
@@ -210,6 +212,8 @@ export class StableDiffusionBackend extends BackendService {
       pid: null,
       error: null,
       startedAt: null,
+      contextSize: null,
+      gpuLayers: null,
     };
 
     try {
@@ -293,6 +297,8 @@ export class StableDiffusionBackend extends BackendService {
       pid: null,
       error: null,
       startedAt: null,
+      contextSize: null,
+      gpuLayers: null,
     };
   }
 

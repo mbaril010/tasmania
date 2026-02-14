@@ -22,10 +22,10 @@ const ImagePanel: React.FC = () => {
   // Generation params
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
-  const [steps, setSteps] = useState(settings?.stableDiffusion?.defaultSteps ?? 20);
-  const [cfgScale, setCfgScale] = useState(settings?.stableDiffusion?.defaultCfgScale ?? 7.0);
-  const [width, setWidth] = useState(settings?.stableDiffusion?.defaultWidth ?? 512);
-  const [height, setHeight] = useState(settings?.stableDiffusion?.defaultHeight ?? 512);
+  const [steps, setSteps] = useState(settings?.stableDiffusion?.defaultSteps ?? 8);
+  const [cfgScale, setCfgScale] = useState(settings?.stableDiffusion?.defaultCfgScale ?? 1.0);
+  const [width, setWidth] = useState(settings?.stableDiffusion?.defaultWidth ?? 1024);
+  const [height, setHeight] = useState(settings?.stableDiffusion?.defaultHeight ?? 1024);
   const [seed, setSeed] = useState('');
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
@@ -88,7 +88,13 @@ const ImagePanel: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    if (!prompt.trim()) return;
+    const trimmedPrompt = prompt.trim();
+    if (!trimmedPrompt) return;
+    if (trimmedPrompt.length > 10_000) { setGenError('Prompt too long (max 10,000 chars)'); return; }
+    if (width < 64 || width > 2048) { setGenError('Width must be 64-2048'); return; }
+    if (height < 64 || height > 2048) { setGenError('Height must be 64-2048'); return; }
+    if (steps < 1 || steps > 150) { setGenError('Steps must be 1-150'); return; }
+    if (cfgScale < 0 || cfgScale > 30) { setGenError('CFG scale must be 0-30'); return; }
     setGenerating(true);
     setGenError(null);
     try {
@@ -382,8 +388,32 @@ const ImagePanel: React.FC = () => {
                 borderRadius: 10,
                 border: '1px solid #2a2a2a',
                 padding: 12,
+                position: 'relative',
               }}
             >
+              <button
+                onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
+                title="Delete image"
+                style={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: 'rgba(0,0,0,0.6)',
+                  color: '#f87171',
+                  fontSize: '1rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 1,
+                }}
+              >
+                ✕
+              </button>
               <img
                 src={`data:image/png;base64,${img.b64}`}
                 alt={img.prompt}
