@@ -30,5 +30,8 @@ export const SD_DEFAULT_CFG_SCALE = 7.0;
 export const SD_DEFAULT_WIDTH = 512;
 export const SD_DEFAULT_HEIGHT = 512;
 
+export const COMFYUI_DEFAULT_PORT = 8188;
+export const COMFYUI_DEFAULT_PYTHON = 'python3';
+
 export const HF_API_BASE = 'https://huggingface.co/api';
 export const HF_DOWNLOAD_BASE = 'https://huggingface.co';

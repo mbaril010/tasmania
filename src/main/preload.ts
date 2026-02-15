@@ -9,12 +9,17 @@ import type {
   HuggingFaceModel,
   ImageGenerationRequest,
   ImageGenerationResult,
+  Img2ImgGenerationRequest,
   LocalModel,
+  MemoryPreflightResult,
   ModelResolution,
   ServerOptions,
   ServerState,
   UpdateCheckResult,
   UpdateInfo,
+  VideoGenerationRequest,
+  Img2VidGenerationRequest,
+  VideoGenerationResult,
 } from '../shared/types';
 
 // Type-safe API exposed to the renderer
@@ -34,6 +39,9 @@ const api = {
 
   getServerLogs: (): Promise<string[]> =>
     ipcRenderer.invoke(IPC.BACKEND_LOGS),
+
+  preflightCheck: (modelPath: string): Promise<MemoryPreflightResult> =>
+    ipcRenderer.invoke(IPC.BACKEND_PREFLIGHT_CHECK, modelPath),
 
   onServerStatusChanged: (callback: (state: ServerState) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, state: ServerState) => callback(state);
@@ -93,7 +101,7 @@ const api = {
   },
 
   // ── System ──
-  getSystemInfo: (): Promise<{ platform: string; arch: string; memory: number }> =>
+  getSystemInfo: (): Promise<{ platform: string; arch: string; memory: number; freeMemory: number }> =>
     ipcRenderer.invoke(IPC.SYSTEM_INFO),
 
   openPath: (path: string): Promise<void> =>
@@ -155,6 +163,9 @@ const api = {
     generate: (params: ImageGenerationRequest): Promise<ImageGenerationResult> =>
       ipcRenderer.invoke(IPC.IMAGE_GENERATE, params),
 
+    generateImg2Img: (params: Img2ImgGenerationRequest): Promise<ImageGenerationResult> =>
+      ipcRenderer.invoke(IPC.IMAGE_GENERATE_IMG2IMG, params),
+
     onStatusChanged: (callback: (state: ServerState) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, state: ServerState) => callback(state);
       ipcRenderer.on(IPC.IMAGE_STATUS_CHANGED, handler);
@@ -165,6 +176,48 @@ const api = {
       const handler = (_event: Electron.IpcRendererEvent, line: string) => callback(line);
       ipcRenderer.on(IPC.IMAGE_LOG_LINE, handler);
       return () => ipcRenderer.removeListener(IPC.IMAGE_LOG_LINE, handler);
+    },
+  },
+
+  // ── Video Generation (ComfyUI) ──
+  video: {
+    start: (options?: Partial<ServerOptions>): Promise<void> =>
+      ipcRenderer.invoke(IPC.VIDEO_START, options),
+
+    stop: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.VIDEO_STOP),
+
+    getStatus: (): Promise<ServerState> =>
+      ipcRenderer.invoke(IPC.VIDEO_STATUS),
+
+    getLogs: (): Promise<string[]> =>
+      ipcRenderer.invoke(IPC.VIDEO_LOGS),
+
+    generateTxt2Vid: (params: VideoGenerationRequest): Promise<VideoGenerationResult> =>
+      ipcRenderer.invoke(IPC.VIDEO_GENERATE_TXT2VID, params),
+
+    generateImg2Vid: (params: Img2VidGenerationRequest): Promise<VideoGenerationResult> =>
+      ipcRenderer.invoke(IPC.VIDEO_GENERATE_IMG2VID, params),
+
+    cancel: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.VIDEO_CANCEL),
+
+    onStatusChanged: (callback: (state: ServerState) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: ServerState) => callback(state);
+      ipcRenderer.on(IPC.VIDEO_STATUS_CHANGED, handler);
+      return () => ipcRenderer.removeListener(IPC.VIDEO_STATUS_CHANGED, handler);
+    },
+
+    onLogLine: (callback: (line: string) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, line: string) => callback(line);
+      ipcRenderer.on(IPC.VIDEO_LOG_LINE, handler);
+      return () => ipcRenderer.removeListener(IPC.VIDEO_LOG_LINE, handler);
+    },
+
+    onProgress: (callback: (data: { value: number; max: number }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { value: number; max: number }) => callback(data);
+      ipcRenderer.on(IPC.VIDEO_GENERATION_PROGRESS, handler);
+      return () => ipcRenderer.removeListener(IPC.VIDEO_GENERATION_PROGRESS, handler);
     },
   },
 

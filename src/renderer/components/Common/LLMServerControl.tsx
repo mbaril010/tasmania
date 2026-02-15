@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../contexts/AppContext';
+import type { MemoryPreflightResult } from '../../../shared/types';
 import Button from './Button';
 import StatusIndicator from './StatusIndicator';
 
@@ -15,13 +16,14 @@ const LLMServerControl: React.FC<LLMServerControlProps> = ({ onServerStopped }) 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
+  const [memoryWarning, setMemoryWarning] = useState<MemoryPreflightResult | null>(null);
 
   const llmModels = models.filter((m) => !IMAGE_MODEL_PATTERN.test(m.filename));
   const isStopped = serverState.status === 'stopped';
   const isRunningOrStarting = serverState.status === 'running' || serverState.status === 'starting';
+  const isError = serverState.status === 'error';
 
-  const handleStart = async () => {
-    if (!selectedModel) return;
+  const doStart = async () => {
     setLoading(true);
     setError(null);
     try {
@@ -30,6 +32,26 @@ const LLMServerControl: React.FC<LLMServerControlProps> = ({ onServerStopped }) 
       setError(err instanceof Error ? err.message : String(err));
     }
     setLoading(false);
+  };
+
+  const handleStart = async () => {
+    if (!selectedModel) return;
+    setError(null);
+    try {
+      const preflight = await window.tasmania.preflightCheck(selectedModel);
+      if (!preflight.ok) {
+        setMemoryWarning(preflight);
+        return;
+      }
+    } catch {
+      // If preflight fails (e.g. file not found), fall through to normal start
+    }
+    await doStart();
+  };
+
+  const handleForceStart = async () => {
+    setMemoryWarning(null);
+    await doStart();
   };
 
   const handleStop = () => {
@@ -58,6 +80,7 @@ const LLMServerControl: React.FC<LLMServerControlProps> = ({ onServerStopped }) 
           border: '1px solid #2a2a2a',
           padding: 16,
           marginBottom: 16,
+          flexShrink: 0,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
@@ -98,7 +121,7 @@ const LLMServerControl: React.FC<LLMServerControlProps> = ({ onServerStopped }) 
           </div>
         )}
 
-        {isRunningOrStarting && (
+        {(isRunningOrStarting || isError) && (
           <Button variant="danger" onClick={handleStop} disabled={loading}>
             {loading ? 'Stopping...' : 'Stop Server'}
           </Button>
@@ -110,7 +133,7 @@ const LLMServerControl: React.FC<LLMServerControlProps> = ({ onServerStopped }) 
           </div>
         )}
 
-        {error && (
+        {(error || serverState.error) && (
           <div
             style={{
               marginTop: 8,
@@ -121,7 +144,7 @@ const LLMServerControl: React.FC<LLMServerControlProps> = ({ onServerStopped }) 
               fontSize: '0.85rem',
             }}
           >
-            {error}
+            {error || serverState.error}
           </div>
         )}
       </div>
@@ -189,6 +212,75 @@ const LLMServerControl: React.FC<LLMServerControlProps> = ({ onServerStopped }) 
                 }}
               >
                 Stop Server
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Memory warning dialog */}
+      {memoryWarning && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setMemoryWarning(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#1e1e1e',
+              border: '1px solid #333',
+              borderRadius: 12,
+              padding: '24px 28px',
+              maxWidth: 440,
+              width: '90%',
+            }}
+          >
+            <h3 style={{ margin: '0 0 8px', fontSize: '1.1rem', fontWeight: 600, color: '#f59e0b' }}>
+              Memory Warning
+            </h3>
+            <p style={{ margin: '0 0 20px', fontSize: '0.9rem', color: '#999', lineHeight: 1.5 }}>
+              {memoryWarning.message}
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setMemoryWarning(null)}
+                style={{
+                  padding: '8px 16px',
+                  background: '#333',
+                  border: 'none',
+                  borderRadius: 8,
+                  color: '#ccc',
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleForceStart}
+                style={{
+                  padding: '8px 16px',
+                  background: '#b45309',
+                  border: 'none',
+                  borderRadius: 8,
+                  color: '#fff',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Start Anyway
               </button>
             </div>
           </div>

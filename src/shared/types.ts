@@ -1,6 +1,6 @@
 // ── Backend Types ──
 
-export type BackendType = 'llama.cpp' | 'stable-diffusion';
+export type BackendType = 'llama.cpp' | 'stable-diffusion' | 'comfyui';
 
 export type ServerStatus = 'stopped' | 'starting' | 'running' | 'error';
 
@@ -28,6 +28,15 @@ export interface ServerOptions {
   port: number;
   contextSize: number;
   gpuLayers: number;
+}
+
+export interface MemoryPreflightResult {
+  ok: boolean;
+  modelSizeBytes: number;
+  estimatedRamBytes: number;
+  freeMemoryBytes: number;
+  totalMemoryBytes: number;
+  message: string | null;
 }
 
 // ── Model Types ──
@@ -108,9 +117,49 @@ export interface ImageGenerationRequest {
   sampler?: string;
 }
 
+export interface Img2ImgGenerationRequest {
+  prompt: string;
+  negativePrompt?: string;
+  width: number;
+  height: number;
+  steps: number;
+  cfgScale: number;
+  seed?: number;
+  sampler?: string;
+  initImages: string[];       // base64 PNG/JPEG (no data URL prefix)
+  denoisingStrength: number;  // 0.0–1.0
+}
+
 export interface ImageGenerationResult {
   b64: string;
   seed: number;
+  timingMs: number;
+}
+
+// ── Video Generation Types ──
+
+export interface VideoGenerationRequest {
+  prompt: string;
+  negativePrompt?: string;
+  width: number;
+  height: number;
+  frameCount: number;
+  fps: number;
+  steps: number;
+  cfgScale: number;
+  seed?: number;
+}
+
+export interface Img2VidGenerationRequest extends VideoGenerationRequest {
+  initImages: string[];
+  denoisingStrength: number;
+}
+
+export interface VideoGenerationResult {
+  filePath: string;
+  frameCount: number;
+  fps: number;
+  durationSeconds: number;
   timingMs: number;
 }
 
@@ -131,6 +180,11 @@ export interface AppSettings {
     defaultCfgScale: number;
     defaultWidth: number;
     defaultHeight: number;
+  };
+  comfyui: {
+    path: string;
+    port: number;
+    pythonPath: string;
   };
   theme: 'light' | 'dark' | 'system';
 }

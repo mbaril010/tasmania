@@ -1,0 +1,69 @@
+{
+  "1": {
+    "class_type": "ImageOnlyCheckpointLoader",
+    "inputs": {
+      "ckpt_name": "svd_xt.safetensors"
+    }
+  },
+  "2": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "{{init_image_name}}"
+    }
+  },
+  "3": {
+    "class_type": "ImageResize",
+    "inputs": {
+      "width": "{{width}}",
+      "height": "{{height}}",
+      "method": "lanczos",
+      "image": ["2", 0]
+    }
+  },
+  "4": {
+    "class_type": "SVD_img2vid_Conditioning",
+    "inputs": {
+      "width": "{{width}}",
+      "height": "{{height}}",
+      "video_frames": "{{frame_count}}",
+      "motion_bucket_id": 127,
+      "fps": "{{fps}}",
+      "augmentation_level": 0.0,
+      "clip_vision": ["1", 1],
+      "init_image": ["3", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "5": {
+    "class_type": "KSampler",
+    "inputs": {
+      "seed": "{{seed}}",
+      "steps": "{{steps}}",
+      "cfg": "{{cfg_scale}}",
+      "sampler_name": "euler",
+      "scheduler": "karras",
+      "denoise": "{{denoising_strength}}",
+      "model": ["1", 0],
+      "positive": ["4", 0],
+      "negative": ["4", 1],
+      "latent_image": ["4", 2]
+    }
+  },
+  "6": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["5", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "7": {
+    "class_type": "VHS_VideoCombine",
+    "inputs": {
+      "frame_rate": "{{fps}}",
+      "loop_count": 0,
+      "filename_prefix": "img2vid",
+      "format": "video/h264-mp4",
+      "images": ["6", 0]
+    }
+  }
+}

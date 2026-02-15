@@ -13,7 +13,6 @@ const navItems: NavItem[] = [
   { id: 'models', label: 'Models', icon: '◎' },
   { id: 'backends', label: 'Backends', icon: '⚡' },
   { id: 'api', label: 'API', icon: '⬡' },
-  { id: 'settings', label: 'Settings', icon: '⚙' },
 ];
 
 interface Props {
@@ -22,7 +21,7 @@ interface Props {
 }
 
 const Sidebar: React.FC<Props> = ({ activeScreen, onNavigate }) => {
-  const { serverState, imageServerState } = useApp();
+  const { serverState, imageServerState, videoServerState } = useApp();
 
   return (
     <nav
@@ -75,6 +74,34 @@ const Sidebar: React.FC<Props> = ({ activeScreen, onNavigate }) => {
             </button>
           );
         })}
+      </div>
+
+      {/* Settings — pinned above server status */}
+      <div style={{ padding: '0 8px 4px' }}>
+        <button
+          onClick={() => onNavigate('settings')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 12px',
+            borderRadius: 8,
+            border: 'none',
+            width: '100%',
+            background: activeScreen === 'settings' ? '#252525' : 'transparent',
+            color: activeScreen === 'settings' ? '#fff' : '#888',
+            cursor: 'pointer',
+            fontSize: '0.9rem',
+            fontFamily: 'inherit',
+            fontWeight: activeScreen === 'settings' ? 600 : 400,
+            transition: 'all 0.15s ease',
+            textAlign: 'left',
+            WebkitAppRegion: 'no-drag',
+          } as React.CSSProperties}
+        >
+          <span style={{ fontSize: '1.1rem', width: 20, textAlign: 'center' }}>⚙</span>
+          Settings
+        </button>
       </div>
 
       {/* Server status footer */}
@@ -130,6 +157,23 @@ const Sidebar: React.FC<Props> = ({ activeScreen, onNavigate }) => {
               {imageServerState.modelName}
             </div>
           )}
+        </div>
+
+        {/* Video (ComfyUI) server */}
+        <div>
+          <div style={{ fontSize: '0.65rem', color: '#555', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Video
+          </div>
+          <StatusIndicator
+            status={videoServerState.status}
+            label={
+              videoServerState.status === 'running'
+                ? `Port ${videoServerState.port}`
+                : videoServerState.status === 'error'
+                ? 'Error'
+                : 'Off'
+            }
+          />
         </div>
       </div>
     </nav>

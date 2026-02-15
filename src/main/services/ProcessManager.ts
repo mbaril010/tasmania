@@ -162,5 +162,6 @@ export class ProcessManager extends EventEmitter {
   private cleanup() {
     this.process = null;
     this.info = null;
+    this.logs = [];
   }
 }

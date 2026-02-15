@@ -6,6 +6,7 @@ import { registerSystemHandlers } from './ipc/system-handlers';
 import { registerUpdateHandlers, checkForUpdatesOnLaunch } from './ipc/update-handlers';
 import { registerTerminalHandlers, shutdownTerminal } from './ipc/terminal-handlers';
 import { registerImageHandlers, shutdownImageServer } from './ipc/image-handlers';
+import { registerVideoHandlers, shutdownVideoServer } from './ipc/video-handlers';
 import { startControlApi, stopControlApi } from './mcp/control-api';
 import { getSettings } from './store/AppStore';
 
@@ -55,6 +56,7 @@ registerSystemHandlers();
 registerUpdateHandlers();
 registerTerminalHandlers();
 registerImageHandlers();
+registerVideoHandlers();
 
 app.whenReady().then(async () => {
   createWindow();
@@ -80,7 +82,7 @@ app.on('before-quit', (event) => {
   isQuitting = true;
   stopControlApi();
   shutdownTerminal();
-  Promise.all([shutdownImageServer(), shutdownBackends()])
+  Promise.all([shutdownVideoServer(), shutdownImageServer(), shutdownBackends()])
     .catch((err) => console.error('Shutdown error:', err))
     .finally(() => app.quit());
 });

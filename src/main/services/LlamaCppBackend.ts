@@ -90,10 +90,15 @@ export class LlamaCppBackend extends BackendService {
     };
 
     try {
+      // Scale timeout with model size: base 60s + 2s per GB for load + warmup
+      const stat = await fs.stat(modelPath);
+      const modelSizeGB = stat.size / 1024 ** 3;
+      const timeoutMs = Math.round(60_000 + modelSizeGB * 2_000);
+
       const binDir = getBinariesDir();
       await this.processManager.start(binaryPath, args, {
         readyPattern: /listening|all slots are idle/i,
-        timeoutMs: 60_000,
+        timeoutMs,
         env: { DYLD_LIBRARY_PATH: binDir },
       });
 
@@ -116,6 +121,23 @@ export class LlamaCppBackend extends BackendService {
   }
 
   async stopServer(): Promise<void> {
+    // Clear KV cache via the llama-server slots API before killing the process.
+    // This lets the server deallocate memory gracefully instead of relying
+    // solely on SIGKILL cleanup.
+    if (this.state.status === 'running' && this.state.port) {
+      try {
+        const resp = await fetch(
+          `http://127.0.0.1:${this.state.port}/slots/0?action=erase`,
+          { method: 'POST', signal: AbortSignal.timeout(2_000) }
+        );
+        if (!resp.ok) {
+          console.warn(`KV cache clear returned ${resp.status}`);
+        }
+      } catch {
+        // Server may already be unresponsive — proceed with shutdown
+      }
+    }
+
     await this.processManager.stop();
     this.state = {
       status: 'stopped',

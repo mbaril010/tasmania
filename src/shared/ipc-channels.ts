@@ -7,6 +7,7 @@ export const IPC = {
   BACKEND_STOP: 'backend:stop',
   BACKEND_STATUS: 'backend:status',
   BACKEND_LOGS: 'backend:logs',
+  BACKEND_PREFLIGHT_CHECK: 'backend:preflight-check',
 
   // Backend events (main → renderer)
   BACKEND_STATUS_CHANGED: 'backend:status-changed',
@@ -50,12 +51,27 @@ export const IPC = {
   IMAGE_STATUS: 'image:status',
   IMAGE_LOGS: 'image:logs',
   IMAGE_GENERATE: 'image:generate',
+  IMAGE_GENERATE_IMG2IMG: 'image:generate-img2img',
 
   IMAGE_RESOLVE_MODEL: 'image:resolve-model',
 
   // Image events (main → renderer)
   IMAGE_STATUS_CHANGED: 'image:status-changed',
   IMAGE_LOG_LINE: 'image:log-line',
+
+  // Video generation operations (ComfyUI)
+  VIDEO_START: 'video:start',
+  VIDEO_STOP: 'video:stop',
+  VIDEO_STATUS: 'video:status',
+  VIDEO_LOGS: 'video:logs',
+  VIDEO_GENERATE_TXT2VID: 'video:generate-txt2vid',
+  VIDEO_GENERATE_IMG2VID: 'video:generate-img2vid',
+  VIDEO_CANCEL: 'video:cancel',
+
+  // Video events (main → renderer)
+  VIDEO_STATUS_CHANGED: 'video:status-changed',
+  VIDEO_LOG_LINE: 'video:log-line',
+  VIDEO_GENERATION_PROGRESS: 'video:generation-progress',
 
   // Terminal operations
   TERMINAL_CREATE: 'terminal:create',

@@ -150,7 +150,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
     : 'Send a message to start chatting.';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <LLMServerControl />
       {/* Message list */}
       <div

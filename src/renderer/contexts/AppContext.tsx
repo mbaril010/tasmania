@@ -23,6 +23,10 @@ interface AppContextValue {
   imageServerState: ServerState;
   imageServerLogs: string[];
 
+  // Video backend state (ComfyUI)
+  videoServerState: ServerState;
+  videoServerLogs: string[];
+
   // Model state
   models: LocalModel[];
   downloads: DownloadProgress[];
@@ -34,7 +38,7 @@ interface AppContextValue {
   updateSettings: (partial: Partial<AppSettings>) => Promise<void>;
 
   // System
-  systemInfo: { platform: string; arch: string; memory: number } | null;
+  systemInfo: { platform: string; arch: string; memory: number; freeMemory: number } | null;
 
   // Update
   updateInfo: UpdateInfo | null;
@@ -68,10 +72,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [serverLogs, setServerLogs] = useState<string[]>([]);
   const [imageServerState, setImageServerState] = useState<ServerState>(defaultServerState);
   const [imageServerLogs, setImageServerLogs] = useState<string[]>([]);
+  const [videoServerState, setVideoServerState] = useState<ServerState>(defaultServerState);
+  const [videoServerLogs, setVideoServerLogs] = useState<string[]>([]);
   const [models, setModels] = useState<LocalModel[]>([]);
   const [downloads, setDownloads] = useState<DownloadProgress[]>([]);
   const [settings, setSettingsState] = useState<AppSettings | null>(null);
-  const [systemInfo, setSystemInfo] = useState<{ platform: string; arch: string; memory: number } | null>(null);
+  const [systemInfo, setSystemInfo] = useState<{ platform: string; arch: string; memory: number; freeMemory: number } | null>(null);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
 
   // Track cleanup functions
@@ -90,6 +96,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     api.getServerLogs().then(setServerLogs);
     api.image.getStatus().then(setImageServerState);
     api.image.getLogs().then(setImageServerLogs);
+    api.video.getStatus().then(setVideoServerState);
+    api.video.getLogs().then(setVideoServerLogs);
 
     // Subscribe to events
     const unsub1 = api.onServerStatusChanged((state) => {
@@ -129,7 +137,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setImageServerLogs((prev) => [...prev.slice(-499), line]);
     });
 
-    cleanupRef.current = [unsub1, unsub2, unsub3, unsub4, unsub5, unsub6];
+    const unsub7 = api.video.onStatusChanged((state) => {
+      setVideoServerState(state);
+    });
+
+    const unsub8 = api.video.onLogLine((line) => {
+      setVideoServerLogs((prev) => [...prev.slice(-499), line]);
+    });
+
+    cleanupRef.current = [unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7, unsub8];
 
     return () => {
       cleanupRef.current.forEach((fn) => fn());
@@ -198,6 +214,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         stopServer,
         imageServerState,
         imageServerLogs,
+        videoServerState,
+        videoServerLogs,
         models,
         downloads,
         refreshModels,

@@ -1,18 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../contexts/AppContext';
-import Card from '../components/Common/Card';
 import LLMServerControl from '../components/Common/LLMServerControl';
 import ChatPanel from '../components/Chat/ChatPanel';
 import SessionSidebar from '../components/Chat/SessionSidebar';
 import TerminalPanel from '../components/Terminal/TerminalPanel';
 import TerminalSessionSidebar from '../components/Terminal/TerminalSessionSidebar';
 import ImagePanel from '../components/Image/ImagePanel';
+import Img2ImgPanel from '../components/Image/Img2ImgPanel';
+import VideoPanel from '../components/Video/VideoPanel';
 
-type ChatTab = 'chat' | 'code' | 'image';
+type DashboardTab = 'chat' | 'code' | 'image' | 'img2img' | 'video';
+
+const TABS: { id: DashboardTab; label: string }[] = [
+  { id: 'chat', label: '💬 Chat' },
+  { id: 'code', label: '🖥 Code' },
+  { id: 'image', label: '🎨 Txt2Img' },
+  { id: 'img2img', label: '🖼 Img2Img' },
+  { id: 'video', label: '🎬 Video' },
+];
 
 const HomeScreen: React.FC = () => {
   const { serverState } = useApp();
-  const [activeTab, setActiveTab] = useState<ChatTab>('chat');
+  const [activeTab, setActiveTab] = useState<DashboardTab>('chat');
   const [terminalCreated, setTerminalCreated] = useState(false);
 
   // Gate terminal creation: once created, keep it alive even if server stops
@@ -23,27 +32,21 @@ const HomeScreen: React.FC = () => {
   }, [serverState.status, terminalCreated]);
 
   return (
-    <div style={{ padding: '2rem', maxWidth: 900, overflow: 'auto', height: '100%' }}>
-      <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1.5rem' }}>Dashboard</h2>
+    <div style={{ padding: '2rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: '1rem', flexShrink: 0 }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Dashboard</h2>
 
-      {/* Chat / Code / Image tabs */}
-      <Card style={{ marginBottom: '1.5rem', display: 'flex', flexDirection: 'column' }}>
+        {/* Tab bar */}
         <div
           style={{
             display: 'flex',
             gap: 4,
-            marginBottom: 16,
             background: '#141414',
             borderRadius: 10,
             padding: 4,
-            width: 'fit-content',
           }}
         >
-          {([
-            { id: 'chat' as ChatTab, label: '💬 Chat' },
-            { id: 'code' as ChatTab, label: '🖥 Code' },
-            { id: 'image' as ChatTab, label: '🎨 Image' },
-          ]).map((tab) => (
+          {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -64,24 +67,38 @@ const HomeScreen: React.FC = () => {
             </button>
           ))}
         </div>
+      </div>
 
-        {/* Image tab: always available — manages its own server */}
-        <div style={{ display: activeTab === 'image' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}>
+      {/* Tab content — fills remaining space */}
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+
+        {/* Image tab */}
+        <div style={{ display: activeTab === 'image' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column', overflowY: 'auto' }}>
           <ImagePanel />
         </div>
 
-        {/* Chat tab: sidebar + chat panel (ChatPanel has its own LLMServerControl) */}
-        <div style={{ display: activeTab === 'chat' ? 'flex' : 'none', flex: 1 }}>
+        {/* Video tab */}
+        <div style={{ display: activeTab === 'video' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column', overflowY: 'auto' }}>
+          <VideoPanel />
+        </div>
+
+        {/* Img2Img tab */}
+        <div style={{ display: activeTab === 'img2img' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column', overflowY: 'auto' }}>
+          <Img2ImgPanel />
+        </div>
+
+        {/* Chat tab */}
+        <div style={{ display: activeTab === 'chat' ? 'flex' : 'none', flex: 1, minHeight: 0 }}>
           <SessionSidebar />
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 12 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, paddingLeft: 12 }}>
             <ChatPanel mode="chat" />
           </div>
         </div>
 
-        {/* Code tab: server control + terminal panel */}
-        <div style={{ display: activeTab === 'code' ? 'flex' : 'none', flex: 1 }}>
+        {/* Code tab */}
+        <div style={{ display: activeTab === 'code' ? 'flex' : 'none', flex: 1, minHeight: 0 }}>
           <TerminalSessionSidebar />
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, paddingLeft: 12 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, paddingLeft: 12 }}>
             <LLMServerControl onServerStopped={() => setTerminalCreated(false)} />
             {terminalCreated ? (
               <TerminalPanel />
@@ -94,7 +111,7 @@ const HomeScreen: React.FC = () => {
             )}
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
 };

@@ -46,9 +46,52 @@ const ModelsScreen: React.FC = () => {
 
 // ── Local Models Tab ──
 
+type SortKey = 'name' | 'size' | 'quant' | 'params';
+type SortDir = 'asc' | 'desc';
+
+/** Parse parameter strings like "3B", "70B", "0.5B" into a comparable number */
+function parseParams(p: string | null): number {
+  if (!p) return 0;
+  const m = p.match(/([\d.]+)\s*[Bb]/);
+  return m ? parseFloat(m[1]) : 0;
+}
+
 const LocalModelsTab: React.FC = () => {
   const { models, deleteModel } = useApp();
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('size');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  const sortedModels = [...models].sort((a, b) => {
+    let cmp = 0;
+    switch (sortKey) {
+      case 'name':
+        cmp = a.filename.localeCompare(b.filename);
+        break;
+      case 'size':
+        cmp = a.sizeBytes - b.sizeBytes;
+        break;
+      case 'quant':
+        cmp = (a.quantization ?? '').localeCompare(b.quantization ?? '');
+        break;
+      case 'params':
+        cmp = parseParams(a.parameters) - parseParams(b.parameters);
+        break;
+    }
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
+  const arrow = (key: SortKey) =>
+    sortKey === key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
 
   const handleDelete = async (path: string) => {
     if (!confirm('Delete this model? This cannot be undone.')) return;
@@ -72,36 +115,53 @@ const LocalModelsTab: React.FC = () => {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-      {models.map((model) => (
-        <Card key={model.path}>
-          <div style={{ marginBottom: 8 }}>
-            <div style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: 4, wordBreak: 'break-word' }}>
-              {model.filename}
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <Tag>{formatBytes(model.sizeBytes)}</Tag>
-              {model.quantization && <Tag color="#fbbf24">{model.quantization}</Tag>}
-              {model.parameters && <Tag color="#f59e0b">{model.parameters}</Tag>}
-            </div>
-          </div>
-          {model.repo && (
-            <div style={{ fontSize: '0.75rem', color: '#555', marginBottom: 8 }}>
-              {model.repo}
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 6 }}>
-            <Button
-              variant="danger"
-              size="sm"
-              onClick={() => handleDelete(model.path)}
-              disabled={deleting === model.path}
-            >
-              {deleting === model.path ? 'Deleting...' : 'Delete'}
-            </Button>
-          </div>
-        </Card>
-      ))}
+    <div style={{ background: '#1a1a1a', borderRadius: 10, border: '1px solid #2a2a2a', overflow: 'hidden' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid #2a2a2a' }}>
+            <th style={thClickStyle} onClick={() => toggleSort('name')}>Name{arrow('name')}</th>
+            <th style={{ ...thClickStyle, width: 110 }} onClick={() => toggleSort('size')}>Size{arrow('size')}</th>
+            <th style={{ ...thClickStyle, width: 100 }} onClick={() => toggleSort('quant')}>Quant{arrow('quant')}</th>
+            <th style={{ ...thClickStyle, width: 100 }} onClick={() => toggleSort('params')}>Params{arrow('params')}</th>
+            <th style={{ ...thStyle, width: 60 }}></th>
+          </tr>
+        </thead>
+        <tbody>
+          {sortedModels.map((model) => (
+            <tr key={model.path} style={{ borderBottom: '1px solid #222' }}>
+              <td style={tdStyle}>
+                <div style={{ fontWeight: 500, color: '#e0e0e0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {model.filename}
+                </div>
+                {model.repo && (
+                  <div style={{ fontSize: '0.75rem', color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {model.repo}
+                  </div>
+                )}
+              </td>
+              <td style={{ ...tdStyle, color: '#aaa', fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                {formatBytes(model.sizeBytes)}
+              </td>
+              <td style={tdStyle}>
+                {model.quantization && <Tag color="#fbbf24">{model.quantization}</Tag>}
+              </td>
+              <td style={tdStyle}>
+                {model.parameters && <Tag color="#f59e0b">{model.parameters}</Tag>}
+              </td>
+              <td style={{ ...tdStyle, textAlign: 'right' }}>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => handleDelete(model.path)}
+                  disabled={deleting === model.path}
+                >
+                  {deleting === model.path ? '...' : 'Delete'}
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };
@@ -112,7 +172,7 @@ const HuggingFaceBrowserTab: React.FC = () => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<HuggingFaceModel[]>([]);
   const [searching, setSearching] = useState(false);
-  const [expandedRepo, setExpandedRepo] = useState<string | null>(null);
+  const [openRepo, setOpenRepo] = useState<HuggingFaceModel | null>(null);
   const [repoFiles, setRepoFiles] = useState<HuggingFaceFile[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [downloading, setDownloading] = useState<Set<string>>(new Set());
@@ -129,20 +189,22 @@ const HuggingFaceBrowserTab: React.FC = () => {
     }
   }, [query]);
 
-  const handleExpand = async (repoId: string) => {
+  const handleOpenRepo = async (model: HuggingFaceModel) => {
+    setOpenRepo(model);
     setSelectedFiles(new Set());
-    if (expandedRepo === repoId) {
-      setExpandedRepo(null);
-      return;
-    }
-    setExpandedRepo(repoId);
     setLoadingFiles(true);
     try {
-      const files = await window.tasmania.listModelFiles(repoId);
+      const files = await window.tasmania.listModelFiles(model.id);
       setRepoFiles(files);
     } finally {
       setLoadingFiles(false);
     }
+  };
+
+  const handleBack = () => {
+    setOpenRepo(null);
+    setRepoFiles([]);
+    setSelectedFiles(new Set());
   };
 
   const toggleFileSelection = (filename: string) => {
@@ -179,6 +241,136 @@ const HuggingFaceBrowserTab: React.FC = () => {
     });
   };
 
+  // ── Detail view: files for a selected repo ──
+  if (openRepo) {
+    const sortedFiles = [...repoFiles].sort((a, b) => a.filename.localeCompare(b.filename));
+    return (
+      <div>
+        {/* Header with back button */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '1rem' }}>
+          <button
+            onClick={handleBack}
+            style={{
+              background: '#252525',
+              border: '1px solid #333',
+              borderRadius: 8,
+              color: '#ccc',
+              cursor: 'pointer',
+              padding: '6px 12px',
+              fontSize: '0.85rem',
+              fontFamily: 'inherit',
+            }}
+          >
+            ← Back
+          </button>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: '1rem', color: '#e0e0e0' }}>{openRepo.id}</div>
+            <div style={{ display: 'flex', gap: 8, fontSize: '0.8rem', color: '#666' }}>
+              <span>↓ {openRepo.downloads.toLocaleString()}</span>
+              <span>♥ {openRepo.likes}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Batch action bar */}
+        {selectedFiles.size > 0 && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 12px',
+            marginBottom: '0.75rem',
+            background: '#1a2744',
+            borderRadius: 8,
+            fontSize: '0.8rem',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ color: '#60a5fa' }}>
+                {selectedFiles.size} file{selectedFiles.size > 1 ? 's' : ''} selected ({formatBytes(
+                  repoFiles.filter(f => selectedFiles.has(f.filename)).reduce((sum, f) => sum + f.sizeBytes, 0)
+                )})
+              </span>
+              <button
+                onClick={() => setSelectedFiles(new Set(repoFiles.map(f => f.filename)))}
+                style={{ background: 'none', border: 'none', color: '#60a5fa', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'inherit', padding: 0, textDecoration: 'underline' }}
+              >
+                Select All
+              </button>
+              <button
+                onClick={() => setSelectedFiles(new Set())}
+                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'inherit', padding: 0, textDecoration: 'underline' }}
+              >
+                Clear
+              </button>
+            </div>
+            <Button size="sm" onClick={() => handleDownloadSelected(openRepo.id)}>
+              Download Selected
+            </Button>
+          </div>
+        )}
+
+        {/* File list */}
+        {loadingFiles ? (
+          <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>Loading files...</div>
+        ) : sortedFiles.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>No files found in this repo.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {sortedFiles.map((file) => {
+              const key = `${openRepo.id}/${file.filename}`;
+              const isDownloading = downloading.has(key);
+              const isSelected = selectedFiles.has(file.filename);
+              return (
+                <div
+                  key={file.filename}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 12px',
+                    background: isSelected ? '#1a2744' : '#1a1a1a',
+                    border: `1px solid ${isSelected ? '#2a4a7a' : '#2a2a2a'}`,
+                    borderRadius: 8,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleFileSelection(file.filename)}
+                      style={{ accentColor: '#fbbf24', cursor: 'pointer', width: 16, height: 16 }}
+                    />
+                    <div>
+                      <div style={{ fontSize: '0.85rem', fontFamily: 'monospace', color: '#e0e0e0' }}>{file.filename}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#666' }}>{formatBytes(file.sizeBytes)}</div>
+                    </div>
+                  </div>
+                  {isDownloading ? (
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={() => window.tasmania.cancelDownload(key)}
+                    >
+                      Cancel
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => handleDownload(openRepo.id, file.filename)}
+                    >
+                      Download
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Search results list ──
   return (
     <div>
       {/* Search */}
@@ -215,134 +407,34 @@ const HuggingFaceBrowserTab: React.FC = () => {
         </Card>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         {results.map((model) => (
-          <Card key={model.id}>
-            <div
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }}
-              onClick={() => handleExpand(model.id)}
-            >
-              <div>
-                <div style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: 4 }}>{model.id}</div>
-                <div style={{ display: 'flex', gap: 8, fontSize: '0.8rem', color: '#666' }}>
-                  <span>↓ {model.downloads.toLocaleString()}</span>
-                  <span>♥ {model.likes}</span>
-                </div>
+          <div
+            key={model.id}
+            onClick={() => handleOpenRepo(model)}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '12px 16px',
+              background: '#1a1a1a',
+              border: '1px solid #2a2a2a',
+              borderRadius: 10,
+              cursor: 'pointer',
+              transition: 'border-color 0.15s ease',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#444')}
+            onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#2a2a2a')}
+          >
+            <div>
+              <div style={{ fontWeight: 600, fontSize: '0.95rem', color: '#e0e0e0', marginBottom: 2 }}>{model.id}</div>
+              <div style={{ display: 'flex', gap: 8, fontSize: '0.8rem', color: '#666' }}>
+                <span>↓ {model.downloads.toLocaleString()}</span>
+                <span>♥ {model.likes}</span>
               </div>
-              <span style={{ color: '#666', fontSize: '1.2rem' }}>
-                {expandedRepo === model.id ? '▾' : '▸'}
-              </span>
             </div>
-
-            {/* Expanded file list */}
-            {expandedRepo === model.id && (
-              <div style={{ marginTop: 12, borderTop: '1px solid #2a2a2a', paddingTop: 12 }}>
-                {loadingFiles ? (
-                  <div style={{ color: '#666', fontSize: '0.85rem' }}>Loading files...</div>
-                ) : repoFiles.length === 0 ? (
-                  <div style={{ color: '#666', fontSize: '0.85rem' }}>No files found in this repo.</div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {/* Batch action bar */}
-                    {selectedFiles.size > 0 && (
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '8px 12px',
-                        background: '#1a2744',
-                        borderRadius: 6,
-                        fontSize: '0.8rem',
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <span style={{ color: '#60a5fa' }}>
-                            {selectedFiles.size} file{selectedFiles.size > 1 ? 's' : ''} selected ({formatBytes(
-                              repoFiles.filter(f => selectedFiles.has(f.filename)).reduce((sum, f) => sum + f.sizeBytes, 0)
-                            )})
-                          </span>
-                          <button
-                            onClick={() => setSelectedFiles(new Set(repoFiles.map(f => f.filename)))}
-                            style={{ background: 'none', border: 'none', color: '#60a5fa', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'inherit', padding: 0, textDecoration: 'underline' }}
-                          >
-                            Select All
-                          </button>
-                          <button
-                            onClick={() => setSelectedFiles(new Set())}
-                            style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'inherit', padding: 0, textDecoration: 'underline' }}
-                          >
-                            Clear
-                          </button>
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownloadSelected(model.id);
-                          }}
-                        >
-                          Download Selected
-                        </Button>
-                      </div>
-                    )}
-                    {repoFiles.map((file) => {
-                      const key = `${model.id}/${file.filename}`;
-                      const isDownloading = downloading.has(key);
-                      const isSelected = selectedFiles.has(file.filename);
-                      return (
-                        <div
-                          key={file.filename}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '6px 10px',
-                            background: isSelected ? '#1a2744' : '#252525',
-                            borderRadius: 6,
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleFileSelection(file.filename)}
-                              onClick={(e) => e.stopPropagation()}
-                              style={{ accentColor: '#fbbf24', cursor: 'pointer', width: 16, height: 16 }}
-                            />
-                            <div>
-                              <div style={{ fontSize: '0.85rem', fontFamily: 'monospace' }}>{file.filename}</div>
-                              <div style={{ fontSize: '0.75rem', color: '#666' }}>{formatBytes(file.sizeBytes)}</div>
-                            </div>
-                          </div>
-                          {isDownloading ? (
-                            <Button
-                              size="sm"
-                              variant="danger"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                window.tasmania.cancelDownload(key);
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDownload(model.id, file.filename);
-                              }}
-                            >
-                              Download
-                            </Button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-          </Card>
+            <span style={{ color: '#555', fontSize: '1rem' }}>▸</span>
+          </div>
         ))}
       </div>
     </div>
@@ -437,6 +529,28 @@ const DownloadsTab: React.FC = () => {
 };
 
 // ── Helpers ──
+
+const thStyle: React.CSSProperties = {
+  textAlign: 'left',
+  padding: '10px 12px',
+  fontSize: '0.75rem',
+  color: '#666',
+  fontWeight: 500,
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+};
+
+const thClickStyle: React.CSSProperties = {
+  ...thStyle,
+  cursor: 'pointer',
+  userSelect: 'none',
+  whiteSpace: 'nowrap',
+};
+
+const tdStyle: React.CSSProperties = {
+  padding: '10px 12px',
+  color: '#aaa',
+};
 
 const Tag: React.FC<{ children: React.ReactNode; color?: string }> = ({ children, color = '#666' }) => (
   <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: 4, background: `${color}22`, color, fontFamily: 'monospace' }}>

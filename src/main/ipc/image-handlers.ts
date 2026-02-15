@@ -3,7 +3,7 @@ import path from 'node:path';
 import { IPC } from '../../shared/ipc-channels';
 import { StableDiffusionBackend } from '../services/StableDiffusionBackend';
 import { getSettings, getModelsDir } from '../store/AppStore';
-import type { ImageGenerationRequest, ServerOptions } from '../../shared/types';
+import type { ImageGenerationRequest, Img2ImgGenerationRequest, ServerOptions } from '../../shared/types';
 
 /** Validate that a model path is within the configured models directory */
 function validateModelPath(modelPath: string): void {
@@ -109,6 +109,73 @@ export function registerImageHandlers() {
         cfg_scale: params.cfgScale,
         seed: params.seed ?? -1,
         sampler_name: params.sampler || '',
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Image generation failed (${response.status}): ${text}`);
+    }
+
+    const json = await response.json() as { images: string[] };
+    const timingMs = Date.now() - startTime;
+
+    if (!json.images || json.images.length === 0) {
+      throw new Error('No image returned from server');
+    }
+
+    return {
+      b64: json.images[0],
+      seed: params.seed ?? -1,
+      timingMs,
+    };
+  });
+
+  ipcMain.handle(IPC.IMAGE_GENERATE_IMG2IMG, async (_event, params: Img2ImgGenerationRequest) => {
+    if (!params || typeof params.prompt !== 'string' || params.prompt.trim().length === 0) {
+      throw new Error('Prompt is required');
+    }
+    if (params.prompt.length > 10_000) throw new Error('Prompt too long (max 10000 chars)');
+    if (!Number.isInteger(params.width) || params.width < 64 || params.width > 2048) {
+      throw new Error('Width must be 64-2048');
+    }
+    if (!Number.isInteger(params.height) || params.height < 64 || params.height > 2048) {
+      throw new Error('Height must be 64-2048');
+    }
+    if (!Number.isInteger(params.steps) || params.steps < 1 || params.steps > 150) {
+      throw new Error('Steps must be 1-150');
+    }
+    if (typeof params.cfgScale !== 'number' || params.cfgScale < 0 || params.cfgScale > 30) {
+      throw new Error('CFG scale must be 0-30');
+    }
+    if (!Array.isArray(params.initImages) || params.initImages.length === 0 || !params.initImages.every((s) => typeof s === 'string' && s.length > 0)) {
+      throw new Error('At least one source image is required');
+    }
+    if (typeof params.denoisingStrength !== 'number' || params.denoisingStrength < 0 || params.denoisingStrength > 1) {
+      throw new Error('Denoising strength must be 0-1');
+    }
+
+    const state = backend.getServerState();
+    if (state.status !== 'running') {
+      throw new Error('Image server is not running');
+    }
+
+    const startTime = Date.now();
+    const baseUrl = `http://127.0.0.1:${state.port}`;
+    const response = await fetch(`${baseUrl}/sdapi/v1/img2img`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: params.prompt,
+        negative_prompt: params.negativePrompt || '',
+        width: params.width,
+        height: params.height,
+        steps: params.steps,
+        cfg_scale: params.cfgScale,
+        seed: params.seed ?? -1,
+        sampler_name: params.sampler || '',
+        init_images: params.initImages,
+        denoising_strength: params.denoisingStrength,
       }),
     });
 
