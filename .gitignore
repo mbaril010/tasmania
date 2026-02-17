@@ -2,6 +2,7 @@ node_modules/
 .vite/
 out/
 dist/
+dist-mcp/
 *.log
 .DS_Store
 binaries/

@@ -83,6 +83,24 @@ else
   fail "node-pty native binary (pty.node) missing — PTY will not work"
 fi
 
+# ─── Check MCP server bundle ───────────────────────────────────────────
+info ""
+info "Checking MCP server bundle..."
+
+MCP_DIR="${RESOURCES}/dist-mcp"
+if [[ -d "$MCP_DIR" ]]; then
+  pass "dist-mcp/ directory present in Resources"
+else
+  fail "dist-mcp/ directory MISSING from Resources — MCP integration will not work"
+fi
+
+MCP_SERVER="${MCP_DIR}/server.js"
+if [[ -f "$MCP_SERVER" ]]; then
+  pass "dist-mcp/server.js exists"
+else
+  fail "dist-mcp/server.js MISSING — MCP server not bundled"
+fi
+
 # ─── Check binaries: llama-server ────────────────────────────────────
 info ""
 info "Checking bundled binaries..."

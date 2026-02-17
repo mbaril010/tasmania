@@ -6,8 +6,9 @@
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",
-    "package": "electron-forge package",
-    "make": "electron-forge make",
+    "build:mcp": "vite build --config vite.mcp.config.ts",
+    "package": "npm run build:mcp && electron-forge package",
+    "make": "npm run build:mcp && electron-forge make",
     "lint": "tsc --noEmit",
     "verify": "bash scripts/verify-package.sh",
     "dmg": "electron-forge package && bash scripts/verify-package.sh && bash scripts/create-dmg.sh",
