@@ -13,6 +13,7 @@ const config: ForgeConfig = {
     extraResource: [
       './binaries',
       './node_modules/@lydell/node-pty-darwin-arm64',
+      './dist-mcp',
     ],
   },
   makers: [
