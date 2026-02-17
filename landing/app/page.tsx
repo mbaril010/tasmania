@@ -12,7 +12,7 @@ function Nav() {
         <a href="#steps" className="hover:text-gray-900 transition-colors">How it works</a>
         <a href="https://github.com/mbaril010/tasmania" className="hover:text-gray-900 transition-colors">GitHub</a>
       </div>
-      <a href="https://github.com/mbaril010/tasmania/releases/download/v0.0.1/Tasmania-0.0.1-arm64.dmg" className="bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium px-4 sm:px-5 py-2.5 rounded-full transition-colors">
+      <a href="https://github.com/mbaril010/tasmania/releases/latest" className="bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium px-4 sm:px-5 py-2.5 rounded-full transition-colors">
         Download
       </a>
     </nav>
@@ -36,7 +36,7 @@ function Hero() {
           No cloud. No complexity. No compromise.
         </p>
         <div className="mt-8 sm:mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
-          <a href="https://github.com/mbaril010/tasmania/releases/download/v0.0.1/Tasmania-0.0.1-arm64.dmg" className="w-full sm:w-auto bg-gray-900 hover:bg-gray-800 text-white font-semibold px-8 py-4 rounded-full text-lg transition-colors inline-block text-center">
+          <a href="https://github.com/mbaril010/tasmania/releases/latest" className="w-full sm:w-auto bg-gray-900 hover:bg-gray-800 text-white font-semibold px-8 py-4 rounded-full text-lg transition-colors inline-block text-center">
             Download for free
           </a>
           <a href="#features" className="text-gray-400 hover:text-gray-600 font-medium transition-colors">
@@ -202,7 +202,7 @@ function CTA() {
           Take AI offline.
         </h2>
         <p className="text-base sm:text-lg text-gray-400 mb-8 sm:mb-10">Free. Open source. MIT licensed.</p>
-        <a href="https://github.com/mbaril010/tasmania/releases/download/v0.0.1/Tasmania-0.0.1-arm64.dmg" className="w-full sm:w-auto bg-gray-900 hover:bg-gray-800 text-white font-semibold px-8 py-4 rounded-full text-lg transition-colors inline-block text-center">
+        <a href="https://github.com/mbaril010/tasmania/releases/latest" className="w-full sm:w-auto bg-gray-900 hover:bg-gray-800 text-white font-semibold px-8 py-4 rounded-full text-lg transition-colors inline-block text-center">
           Download Tasmania
         </a>
       </div>
