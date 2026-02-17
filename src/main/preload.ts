@@ -5,6 +5,8 @@ import type {
   BackendInfo,
   BackendType,
   DownloadProgress,
+  ExoClusterState,
+  ExoModel,
   HuggingFaceFile,
   HuggingFaceModel,
   ImageGenerationRequest,
@@ -12,6 +14,7 @@ import type {
   Img2ImgGenerationRequest,
   LocalModel,
   MemoryPreflightResult,
+  ModelCategory,
   ModelResolution,
   ServerOptions,
   ServerState,
@@ -68,8 +71,8 @@ const api = {
   listModelFiles: (repo: string): Promise<HuggingFaceFile[]> =>
     ipcRenderer.invoke(IPC.MODEL_LIST_FILES, repo),
 
-  downloadModel: (repo: string, filename: string): Promise<string> =>
-    ipcRenderer.invoke(IPC.MODEL_DOWNLOAD, repo, filename),
+  downloadModel: (repo: string, filename: string, category?: ModelCategory): Promise<string> =>
+    ipcRenderer.invoke(IPC.MODEL_DOWNLOAD, repo, filename, category),
 
   cancelDownload: (downloadId: string): Promise<void> =>
     ipcRenderer.invoke(IPC.MODEL_CANCEL_DOWNLOAD, downloadId),
@@ -218,6 +221,75 @@ const api = {
       const handler = (_event: Electron.IpcRendererEvent, data: { value: number; max: number }) => callback(data);
       ipcRenderer.on(IPC.VIDEO_GENERATION_PROGRESS, handler);
       return () => ipcRenderer.removeListener(IPC.VIDEO_GENERATION_PROGRESS, handler);
+    },
+  },
+
+  // ── Exo Cluster ──
+  exo: {
+    connect: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.EXO_CONNECT),
+
+    disconnect: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.EXO_DISCONNECT),
+
+    getStatus: (): Promise<ServerState> =>
+      ipcRenderer.invoke(IPC.EXO_STATUS),
+
+    getLogs: (): Promise<string[]> =>
+      ipcRenderer.invoke(IPC.EXO_LOGS),
+
+    getClusterState: (): Promise<ExoClusterState | null> =>
+      ipcRenderer.invoke(IPC.EXO_CLUSTER_STATE),
+
+    listModels: (): Promise<ExoModel[]> =>
+      ipcRenderer.invoke(IPC.EXO_LIST_MODELS),
+
+    searchModels: (query: string): Promise<ExoModel[]> =>
+      ipcRenderer.invoke(IPC.EXO_SEARCH_MODELS, query),
+
+    addModel: (repoId: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.EXO_ADD_MODEL, repoId),
+
+    deleteModel: (modelId: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.EXO_DELETE_MODEL, modelId),
+
+    previewInstance: (modelId: string): Promise<unknown> =>
+      ipcRenderer.invoke(IPC.EXO_INSTANCE_PREVIEW, modelId),
+
+    createInstance: (modelId: string): Promise<string> =>
+      ipcRenderer.invoke(IPC.EXO_CREATE_INSTANCE, modelId),
+
+    deleteInstance: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.EXO_DELETE_INSTANCE),
+
+    startDownload: (modelId: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.EXO_START_DOWNLOAD, modelId),
+
+    cancelDownload: (nodeId: string, modelId: string): Promise<void> =>
+      ipcRenderer.invoke(IPC.EXO_CANCEL_DOWNLOAD, nodeId, modelId),
+
+    onStatusChanged: (callback: (state: ServerState) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: ServerState) => callback(state);
+      ipcRenderer.on(IPC.EXO_STATUS_CHANGED, handler);
+      return () => ipcRenderer.removeListener(IPC.EXO_STATUS_CHANGED, handler);
+    },
+
+    onLogLine: (callback: (line: string) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, line: string) => callback(line);
+      ipcRenderer.on(IPC.EXO_LOG_LINE, handler);
+      return () => ipcRenderer.removeListener(IPC.EXO_LOG_LINE, handler);
+    },
+
+    onClusterChanged: (callback: (state: ExoClusterState) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: ExoClusterState) => callback(state);
+      ipcRenderer.on(IPC.EXO_CLUSTER_CHANGED, handler);
+      return () => ipcRenderer.removeListener(IPC.EXO_CLUSTER_CHANGED, handler);
+    },
+
+    onDownloadProgress: (callback: (data: unknown) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
+      ipcRenderer.on(IPC.EXO_DOWNLOAD_PROGRESS, handler);
+      return () => ipcRenderer.removeListener(IPC.EXO_DOWNLOAD_PROGRESS, handler);
     },
   },
 

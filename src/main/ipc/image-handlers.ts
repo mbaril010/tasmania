@@ -1,5 +1,6 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import path from 'node:path';
+import fsPromises from 'node:fs/promises';
 import { IPC } from '../../shared/ipc-channels';
 import { StableDiffusionBackend } from '../services/StableDiffusionBackend';
 import { getSettings, getModelsDir } from '../store/AppStore';
@@ -12,6 +13,16 @@ function validateModelPath(modelPath: string): void {
   if (!resolved.startsWith(path.resolve(modelsDir))) {
     throw new Error('Model path must be within the models directory');
   }
+}
+
+async function saveImageToDisk(b64: string, outputDir: string, prompt: string, seed: number): Promise<string> {
+  await fsPromises.mkdir(outputDir, { recursive: true });
+  const slug = prompt.slice(0, 30).replace(/[^a-zA-Z0-9]+/g, '_').replace(/_+$/, '');
+  const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+  const filename = `${timestamp}_${slug}_${seed}.png`;
+  const filepath = path.join(outputDir, filename);
+  await fsPromises.writeFile(filepath, Buffer.from(b64, 'base64'));
+  return filepath;
 }
 
 const backend = new StableDiffusionBackend();
@@ -110,6 +121,7 @@ export function registerImageHandlers() {
         seed: params.seed ?? -1,
         sampler_name: params.sampler || '',
       }),
+      signal: AbortSignal.timeout(30 * 60_000), // 30 min — large models can be slow
     });
 
     if (!response.ok) {
@@ -124,11 +136,20 @@ export function registerImageHandlers() {
       throw new Error('No image returned from server');
     }
 
-    return {
-      b64: json.images[0],
-      seed: params.seed ?? -1,
-      timingMs,
-    };
+    const b64 = json.images[0];
+    const seedUsed = params.seed ?? -1;
+    let savedPath: string | undefined;
+
+    const settings = getSettings();
+    if (settings.imageOutput?.autoSave) {
+      try {
+        savedPath = await saveImageToDisk(b64, settings.imageOutput.outputDir, params.prompt, seedUsed);
+      } catch (err) {
+        console.error('Failed to auto-save image:', err);
+      }
+    }
+
+    return { b64, seed: seedUsed, timingMs, savedPath };
   });
 
   ipcMain.handle(IPC.IMAGE_GENERATE_IMG2IMG, async (_event, params: Img2ImgGenerationRequest) => {
@@ -177,6 +198,7 @@ export function registerImageHandlers() {
         init_images: params.initImages,
         denoising_strength: params.denoisingStrength,
       }),
+      signal: AbortSignal.timeout(30 * 60_000), // 30 min — large models can be slow
     });
 
     if (!response.ok) {
@@ -191,11 +213,20 @@ export function registerImageHandlers() {
       throw new Error('No image returned from server');
     }
 
-    return {
-      b64: json.images[0],
-      seed: params.seed ?? -1,
-      timingMs,
-    };
+    const b64 = json.images[0];
+    const seedUsed = params.seed ?? -1;
+    let savedPath: string | undefined;
+
+    const imgSettings = getSettings();
+    if (imgSettings.imageOutput?.autoSave) {
+      try {
+        savedPath = await saveImageToDisk(b64, imgSettings.imageOutput.outputDir, params.prompt, seedUsed);
+      } catch (err) {
+        console.error('Failed to auto-save image:', err);
+      }
+    }
+
+    return { b64, seed: seedUsed, timingMs, savedPath };
   });
 }
 

@@ -26,6 +26,12 @@ const SettingsScreen: React.FC = () => {
   const [comfyuiSaved, setComfyuiSaved] = useState(false);
   const [comfyuiError, setComfyuiError] = useState<string | null>(null);
 
+  // Local draft state for Exo
+  const [draftExo, setDraftExo] = useState({ host: '127.0.0.1', port: 52415, autoConnect: false });
+  const [exoDirty, setExoDirty] = useState(false);
+  const [exoSaved, setExoSaved] = useState(false);
+  const [exoError, setExoError] = useState<string | null>(null);
+
   // Sync drafts when settings load or change externally
   useEffect(() => {
     if (settings) {
@@ -46,9 +52,15 @@ const SettingsScreen: React.FC = () => {
         port: settings.comfyui?.port ?? 8188,
         pythonPath: settings.comfyui?.pythonPath ?? 'python3',
       });
+      setDraftExo({
+        host: settings.exo?.host ?? '127.0.0.1',
+        port: settings.exo?.port ?? 52415,
+        autoConnect: settings.exo?.autoConnect ?? false,
+      });
       setLlamaDirty(false);
       setSDDirty(false);
       setComfyuiDirty(false);
+      setExoDirty(false);
     }
   }, [settings]);
 
@@ -119,6 +131,18 @@ const SettingsScreen: React.FC = () => {
     }
   };
 
+  const saveExoSettings = async () => {
+    setExoError(null);
+    try {
+      await updateSettings({ exo: draftExo });
+      setExoDirty(false);
+      setExoSaved(true);
+      setTimeout(() => setExoSaved(false), 2000);
+    } catch (err) {
+      setExoError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   const saveSDSettings = async () => {
     setSDError(null);
     try {
@@ -161,6 +185,59 @@ const SettingsScreen: React.FC = () => {
             <Button variant="ghost" size="sm" onClick={handleOpenModelsDir}>
               Open
             </Button>
+          </div>
+        </Card>
+
+        {/* Image Output — full width */}
+        <Card title="Image Output" style={{ gridColumn: '1 / -1' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="checkbox"
+                id="imageAutoSave"
+                checked={settings.imageOutput?.autoSave ?? true}
+                onChange={(e) => updateSettings({ imageOutput: { ...settings.imageOutput, autoSave: e.target.checked } })}
+              />
+              <label htmlFor="imageAutoSave" style={{ fontSize: '0.85rem', color: '#aaa' }}>
+                Auto-save generated images to disk
+              </label>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Output folder:</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  value={settings.imageOutput?.outputDir ?? ''}
+                  readOnly
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    background: '#252525',
+                    border: '1px solid #333',
+                    borderRadius: 8,
+                    color: '#e0e0e0',
+                    fontSize: '0.85rem',
+                    fontFamily: 'monospace',
+                  }}
+                />
+                <Button variant="secondary" size="sm" onClick={async () => {
+                  const dir = await window.tasmania.selectDirectory();
+                  if (dir) {
+                    await updateSettings({ imageOutput: { ...settings.imageOutput, autoSave: settings.imageOutput?.autoSave ?? true, outputDir: dir } });
+                  }
+                }}>
+                  Browse
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => {
+                  if (settings.imageOutput?.outputDir) {
+                    window.tasmania.openPath(settings.imageOutput.outputDir);
+                  }
+                }}>
+                  Open
+                </Button>
+              </div>
+            </div>
           </div>
         </Card>
 
@@ -388,6 +465,66 @@ const SettingsScreen: React.FC = () => {
               )}
               {comfyuiError && (
                 <span style={{ fontSize: '0.8rem', color: '#f87171' }}>{comfyuiError}</span>
+              )}
+            </div>
+          </div>
+        </Card>
+
+        {/* Exo Cluster — full width */}
+        <Card title="Exo Cluster" style={{ gridColumn: '1 / -1' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', gap: 16 }}>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>Host:</label>
+                <input
+                  type="text"
+                  value={draftExo.host}
+                  onChange={(e) => {
+                    setDraftExo((d) => ({ ...d, host: e.target.value }));
+                    setExoDirty(true);
+                  }}
+                  placeholder="127.0.0.1"
+                  style={{ ...inputStyle, fontFamily: 'monospace' }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>Port:</label>
+                <input
+                  type="number"
+                  value={draftExo.port}
+                  onChange={(e) => {
+                    setDraftExo((d) => ({ ...d, port: parseInt(e.target.value) || 0 }));
+                    setExoDirty(true);
+                  }}
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="checkbox"
+                id="exoAutoConnect"
+                checked={draftExo.autoConnect}
+                onChange={(e) => {
+                  setDraftExo((d) => ({ ...d, autoConnect: e.target.checked }));
+                  setExoDirty(true);
+                }}
+              />
+              <label htmlFor="exoAutoConnect" style={{ fontSize: '0.85rem', color: '#aaa' }}>
+                Auto-connect on app launch
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Button onClick={saveExoSettings} disabled={!exoDirty}>
+                Save
+              </Button>
+              {exoSaved && (
+                <span style={{ fontSize: '0.8rem', color: '#4ade80' }}>Saved!</span>
+              )}
+              {exoError && (
+                <span style={{ fontSize: '0.8rem', color: '#f87171' }}>{exoError}</span>
               )}
             </div>
           </div>

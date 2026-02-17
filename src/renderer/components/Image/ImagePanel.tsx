@@ -4,8 +4,6 @@ import Button from '../Common/Button';
 import StatusIndicator from '../Common/StatusIndicator';
 import type { ImageGenerationResult, ModelResolution } from '../../../shared/types';
 
-const IMAGE_MODEL_PATTERN = /(?:^|[_\-.\s])(sd|sdxl|flux|diffusion|stable.?diffusion|turbo|lora|z[_\-.]?image)(?=[_\-.\s]|$)/i;
-
 interface GeneratedImage extends ImageGenerationResult {
   prompt: string;
   width: number;
@@ -37,7 +35,7 @@ const ImagePanel: React.FC = () => {
   const [images, setImages] = useState<GeneratedImage[]>([]);
 
   // Filter models to image-relevant ones
-  const imageModels = models.filter((m) => IMAGE_MODEL_PATTERN.test(m.filename));
+  const imageModels = models.filter((m) => m.category === 'image');
 
   // Resolve model when selection changes
   useEffect(() => {
@@ -434,9 +432,14 @@ const ImagePanel: React.FC = () => {
                   <span style={{ marginLeft: 12 }}>{(img.timingMs / 1000).toFixed(1)}s</span>
                   {img.seed >= 0 && <span style={{ marginLeft: 12 }}>seed: {img.seed}</span>}
                 </div>
-                <Button size="sm" variant="secondary" onClick={() => handleDownload(img)}>
-                  Save
-                </Button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {img.savedPath && (
+                    <span style={{ fontSize: '0.75rem', color: '#4ade80' }}>Saved</span>
+                  )}
+                  <Button size="sm" variant="secondary" onClick={() => handleDownload(img)}>
+                    Save
+                  </Button>
+                </div>
               </div>
             </div>
           ))}

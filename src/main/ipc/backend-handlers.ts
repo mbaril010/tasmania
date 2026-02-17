@@ -8,6 +8,7 @@ import { BackendService } from '../services/BackendService';
 import { LlamaCppBackend } from '../services/LlamaCppBackend';
 import { getSettings, getModelsDir } from '../store/AppStore';
 import { getImageBackend } from './image-handlers';
+import { getExoBackend } from './exo-handlers';
 import type { BackendInfo, BackendType, MemoryPreflightResult, ServerOptions } from '../../shared/types';
 
 /** Validate that a model path is within the configured models directory */
@@ -77,7 +78,7 @@ export function setActiveBackend(b: BackendService | null): void {
 }
 
 export function getBackends(): Record<string, BackendService> {
-  return { 'llama.cpp': backend };
+  return { 'llama.cpp': backend, 'exo': getExoBackend() };
 }
 
 export function registerBackendHandlers() {
@@ -132,29 +133,49 @@ export function registerBackendHandlers() {
       result['stable-diffusion'] = sdInfo;
     }
 
+    const exoBackend = getExoBackend();
+    const exoInfo = await exoBackend.detect();
+    result['exo'] = exoInfo;
+
     return result;
   });
 
   ipcMain.handle(
     IPC.BACKEND_START,
-    async (_event, _backendType: BackendType, modelPath: string, options?: Partial<ServerOptions>) => {
-      validateModelPath(modelPath);
+    async (_event, backendType: BackendType, modelPath: string, options?: Partial<ServerOptions>) => {
+      const isExo = backendType === 'exo';
+
+      // Exo uses model IDs, not file paths — skip path validation
+      if (!isExo) {
+        validateModelPath(modelPath);
+      }
 
       if (activeBackend) {
         await activeBackend.stopServer();
       }
 
       const settings = getSettings();
-      const mergedOptions: ServerOptions = {
-        port: options?.port ?? settings.llamaCpp.port,
-        contextSize: options?.contextSize ?? settings.llamaCpp.contextSize,
-        gpuLayers: options?.gpuLayers ?? settings.llamaCpp.gpuLayers,
-      };
 
-      await backend.startServer(modelPath, mergedOptions);
-      activeBackend = backend;
-
-      sendToRenderer(IPC.BACKEND_STATUS_CHANGED, backend.getServerState());
+      if (isExo) {
+        const exo = getExoBackend();
+        exo.configure(settings.exo.host, settings.exo.port);
+        if (!exo.isConnected()) {
+          await exo.connect();
+        }
+        const exoOptions: ServerOptions = { port: settings.exo.port, contextSize: 0, gpuLayers: 0 };
+        await exo.startServer(modelPath, exoOptions);
+        activeBackend = exo;
+        sendToRenderer(IPC.BACKEND_STATUS_CHANGED, exo.getServerState());
+      } else {
+        const mergedOptions: ServerOptions = {
+          port: options?.port ?? settings.llamaCpp.port,
+          contextSize: options?.contextSize ?? settings.llamaCpp.contextSize,
+          gpuLayers: options?.gpuLayers ?? settings.llamaCpp.gpuLayers,
+        };
+        await backend.startServer(modelPath, mergedOptions);
+        activeBackend = backend;
+        sendToRenderer(IPC.BACKEND_STATUS_CHANGED, backend.getServerState());
+      }
     }
   );
 

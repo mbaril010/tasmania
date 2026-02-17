@@ -2,7 +2,8 @@ import { ipcMain, BrowserWindow } from 'electron';
 import { IPC } from '../../shared/ipc-channels';
 import { HuggingFaceService } from '../services/HuggingFaceService';
 import { ModelService } from '../services/ModelService';
-import { getModelsDir } from '../store/AppStore';
+import { getChatModelsDir, getImageModelsDir, getVideoModelsDir } from '../store/AppStore';
+import type { ModelCategory } from '../../shared/types';
 
 const hfService = new HuggingFaceService();
 const modelService = new ModelService();
@@ -50,9 +51,15 @@ export function registerModelHandlers() {
     return hfService.listModelFiles(repo);
   });
 
-  ipcMain.handle(IPC.MODEL_DOWNLOAD, async (_event, repo: string, filename: string) => {
+  ipcMain.handle(IPC.MODEL_DOWNLOAD, async (_event, repo: string, filename: string, category?: ModelCategory) => {
     if (typeof repo !== 'string' || typeof filename !== 'string') throw new Error('Invalid arguments');
-    const destDir = getModelsDir();
+    const resolved = category ?? ModelService.detectCategory(filename);
+    const categoryDirs: Record<ModelCategory, string> = {
+      chat: getChatModelsDir(),
+      image: getImageModelsDir(),
+      video: getVideoModelsDir(),
+    };
+    const destDir = categoryDirs[resolved];
     return hfService.downloadModel(repo, filename, destDir);
   });
 

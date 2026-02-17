@@ -4,10 +4,12 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { app } from 'electron';
 import { getActiveBackend, setActiveBackend, getBackends } from '../ipc/backend-handlers';
+import { getExoBackend } from '../ipc/exo-handlers';
 import { getModelService, getHuggingFaceService } from '../ipc/model-handlers';
-import { getSettings, getModelsDir } from '../store/AppStore';
+import { getSettings, getModelsDir, getChatModelsDir, getImageModelsDir, getVideoModelsDir } from '../store/AppStore';
 import { CONTROL_API_PORT } from '../../shared/constants';
-import type { BackendType } from '../../shared/types';
+import { ModelService } from '../services/ModelService';
+import type { BackendType, ModelCategory } from '../../shared/types';
 
 let server: http.Server | null = null;
 let apiToken: string | null = null;
@@ -167,7 +169,7 @@ export async function startControlApi(): Promise<void> {
       // POST /api/download — Download a model from HF
       if (route === '/api/download' && req.method === 'POST') {
         const body = await readBody(req);
-        const { repo, filename } = body as { repo: string; filename: string };
+        const { repo, filename, category: rawCategory } = body as { repo: string; filename: string; category?: string };
 
         if (!repo || !filename) {
           res.writeHead(400);
@@ -187,10 +189,73 @@ export async function startControlApi(): Promise<void> {
           return;
         }
 
-        const destDir = getModelsDir();
+        const validCategories = new Set<string>(['chat', 'image', 'video']);
+        const category: ModelCategory = (rawCategory && validCategories.has(rawCategory))
+          ? rawCategory as ModelCategory
+          : ModelService.detectCategory(filename);
+        const categoryDirs: Record<ModelCategory, string> = {
+          chat: getChatModelsDir(),
+          image: getImageModelsDir(),
+          video: getVideoModelsDir(),
+        };
+        const destDir = categoryDirs[category];
         // Start download asynchronously
         getHuggingFaceService().downloadModel(repo, filename, destDir).catch(() => {});
-        res.end(JSON.stringify({ success: true, message: 'Download started' }));
+        res.end(JSON.stringify({ success: true, message: 'Download started', category }));
+        return;
+      }
+
+      // GET /api/exo/status — Exo connection state
+      if (route === '/api/exo/status' && req.method === 'GET') {
+        const exo = getExoBackend();
+        res.end(JSON.stringify({
+          connected: exo.isConnected(),
+          ...exo.getServerState(),
+        }));
+        return;
+      }
+
+      // GET /api/exo/models — List Exo models
+      if (route === '/api/exo/models' && req.method === 'GET') {
+        const exo = getExoBackend();
+        const models = await exo.listModels();
+        res.end(JSON.stringify(models));
+        return;
+      }
+
+      // GET /api/exo/cluster — Cluster state
+      if (route === '/api/exo/cluster' && req.method === 'GET') {
+        const exo = getExoBackend();
+        const cluster = await exo.getClusterState();
+        res.end(JSON.stringify(cluster));
+        return;
+      }
+
+      // POST /api/exo/instance — Create instance
+      if (route === '/api/exo/instance' && req.method === 'POST') {
+        const body = await readBody(req);
+        const { modelId } = body as { modelId: string };
+        if (!modelId) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: 'modelId is required' }));
+          return;
+        }
+        const exo = getExoBackend();
+        const instanceId = await exo.createInstance(modelId);
+        setActiveBackend(exo);
+        res.end(JSON.stringify({ success: true, instanceId }));
+        return;
+      }
+
+      // DELETE /api/exo/instance — Delete active instance
+      if (route === '/api/exo/instance' && req.method === 'DELETE') {
+        const exo = getExoBackend();
+        await exo.deleteInstance();
+        const active = getActiveBackend();
+        if (active?.type === 'exo') {
+          setActiveBackend(null);
+        }
+        res.end(JSON.stringify({ success: true }));
         return;
       }
 

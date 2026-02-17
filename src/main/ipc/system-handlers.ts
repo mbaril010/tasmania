@@ -41,10 +41,12 @@ export function registerSystemHandlers() {
   ipcMain.handle(IPC.SYSTEM_OPEN_PATH, async (_event, filePath: string) => {
     // Only allow opening paths within known safe directories
     const resolved = path.resolve(filePath);
+    const settings = getSettings();
     const allowedDirs = [
       path.resolve(getModelsDir()),
       path.resolve(app.getPath('logs')),
       path.resolve(app.getPath('userData')),
+      path.resolve(settings.imageOutput.outputDir),
     ];
     const isAllowed = allowedDirs.some((dir) => resolved.startsWith(dir));
     if (!isAllowed) {

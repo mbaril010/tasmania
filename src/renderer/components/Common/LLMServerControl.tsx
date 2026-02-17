@@ -1,24 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../contexts/AppContext';
-import type { MemoryPreflightResult } from '../../../shared/types';
+import type { ExoModel, MemoryPreflightResult } from '../../../shared/types';
 import Button from './Button';
 import StatusIndicator from './StatusIndicator';
 
-const IMAGE_MODEL_PATTERN = /(?:^|[_\-.\s])(sd|sdxl|flux|diffusion|stable.?diffusion|turbo|lora|z[_\-.]?image)(?=[_\-.\s]|$)/i;
+type BackendChoice = 'llama.cpp' | 'exo';
 
 interface LLMServerControlProps {
   onServerStopped?: () => void;
 }
 
 const LLMServerControl: React.FC<LLMServerControlProps> = ({ onServerStopped }) => {
-  const { serverState, models, startServer, stopServer } = useApp();
+  const { serverState, models, startServer, stopServer, exoServerState } = useApp();
   const [selectedModel, setSelectedModel] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [memoryWarning, setMemoryWarning] = useState<MemoryPreflightResult | null>(null);
+  const [backendChoice, setBackendChoice] = useState<BackendChoice>('llama.cpp');
+  const [exoModels, setExoModels] = useState<ExoModel[]>([]);
 
-  const llmModels = models.filter((m) => !IMAGE_MODEL_PATTERN.test(m.filename));
+  const isExoConnected = exoServerState.backend === 'exo';
+
+  // Fetch Exo models when switching to Exo backend
+  useEffect(() => {
+    if (backendChoice === 'exo' && isExoConnected) {
+      window.tasmania.exo.listModels().then(setExoModels).catch(() => setExoModels([]));
+    }
+  }, [backendChoice, isExoConnected]);
+
+  const llmModels = models.filter((m) => m.category === 'chat');
   const isStopped = serverState.status === 'stopped';
   const isRunningOrStarting = serverState.status === 'running' || serverState.status === 'starting';
   const isError = serverState.status === 'error';
@@ -27,7 +38,7 @@ const LLMServerControl: React.FC<LLMServerControlProps> = ({ onServerStopped }) 
     setLoading(true);
     setError(null);
     try {
-      await startServer('llama.cpp', selectedModel);
+      await startServer(backendChoice, selectedModel);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -37,14 +48,18 @@ const LLMServerControl: React.FC<LLMServerControlProps> = ({ onServerStopped }) 
   const handleStart = async () => {
     if (!selectedModel) return;
     setError(null);
-    try {
-      const preflight = await window.tasmania.preflightCheck(selectedModel);
-      if (!preflight.ok) {
-        setMemoryWarning(preflight);
-        return;
+
+    // Skip preflight for Exo (it manages its own resources)
+    if (backendChoice === 'llama.cpp') {
+      try {
+        const preflight = await window.tasmania.preflightCheck(selectedModel);
+        if (!preflight.ok) {
+          setMemoryWarning(preflight);
+          return;
+        }
+      } catch {
+        // If preflight fails (e.g. file not found), fall through to normal start
       }
-    } catch {
-      // If preflight fails (e.g. file not found), fall through to normal start
     }
     await doStart();
   };
@@ -93,32 +108,83 @@ const LLMServerControl: React.FC<LLMServerControlProps> = ({ onServerStopped }) 
         </div>
 
         {isStopped && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <select
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-              style={{
-                flex: 1,
-                padding: '8px 12px',
-                background: '#252525',
-                border: '1px solid #333',
-                borderRadius: 8,
-                color: '#e0e0e0',
-                fontSize: '0.85rem',
-                fontFamily: 'inherit',
-              }}
-            >
-              <option value="">-- Select LLM Model --</option>
-              {llmModels.map((m) => (
-                <option key={m.path} value={m.path}>
-                  {m.filename} ({formatBytes(m.sizeBytes)})
-                </option>
-              ))}
-            </select>
-            <Button onClick={handleStart} disabled={!selectedModel || loading}>
-              {loading ? 'Starting...' : 'Start'}
-            </Button>
-          </div>
+          <>
+            {/* Backend toggle — only show when Exo is connected */}
+            {isExoConnected && (
+              <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
+                {(['llama.cpp', 'exo'] as const).map((b, i, arr) => (
+                  <button
+                    key={b}
+                    onClick={() => { setBackendChoice(b); setSelectedModel(''); }}
+                    style={{
+                      padding: '5px 14px',
+                      fontSize: '0.78rem',
+                      fontWeight: backendChoice === b ? 600 : 400,
+                      background: backendChoice === b ? '#252525' : 'transparent',
+                      color: backendChoice === b ? '#e0e0e0' : '#666',
+                      border: '1px solid #333',
+                      borderRadius: i === 0 ? '6px 0 0 6px' : i === arr.length - 1 ? '0 6px 6px 0' : '0',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {b}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {backendChoice === 'llama.cpp' ? (
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    background: '#252525',
+                    border: '1px solid #333',
+                    borderRadius: 8,
+                    color: '#e0e0e0',
+                    fontSize: '0.85rem',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <option value="">-- Select LLM Model --</option>
+                  {llmModels.map((m) => (
+                    <option key={m.path} value={m.path}>
+                      {m.filename} ({formatBytes(m.sizeBytes)})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    background: '#252525',
+                    border: '1px solid #333',
+                    borderRadius: 8,
+                    color: '#e0e0e0',
+                    fontSize: '0.85rem',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <option value="">-- Select Exo Model --</option>
+                  {exoModels.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name || m.id}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <Button onClick={handleStart} disabled={!selectedModel || loading}>
+                {loading ? 'Starting...' : 'Start'}
+              </Button>
+            </div>
+          </>
         )}
 
         {(isRunningOrStarting || isError) && (

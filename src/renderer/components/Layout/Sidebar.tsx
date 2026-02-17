@@ -21,7 +21,7 @@ interface Props {
 }
 
 const Sidebar: React.FC<Props> = ({ activeScreen, onNavigate }) => {
-  const { serverState, imageServerState, videoServerState } = useApp();
+  const { serverState, imageServerState, videoServerState, exoServerState } = useApp();
 
   return (
     <nav
@@ -174,6 +174,26 @@ const Sidebar: React.FC<Props> = ({ activeScreen, onNavigate }) => {
                 : 'Off'
             }
           />
+        </div>
+
+        {/* Exo cluster */}
+        <div>
+          <div style={{ fontSize: '0.65rem', color: '#555', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Exo
+          </div>
+          <StatusIndicator
+            status={exoServerState.backend === 'exo' ? 'running' : 'stopped'}
+            label={
+              exoServerState.backend === 'exo'
+                ? `Port ${exoServerState.port}`
+                : 'Off'
+            }
+          />
+          {exoServerState.modelName && (
+            <div style={{ fontSize: '0.7rem', color: '#555', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {exoServerState.modelName}
+            </div>
+          )}
         </div>
       </div>
     </nav>

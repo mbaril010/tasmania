@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useApp } from '../contexts/AppContext';
 import Card from '../components/Common/Card';
 import Button from '../components/Common/Button';
-import type { HuggingFaceModel, HuggingFaceFile } from '../../shared/types';
+import type { HuggingFaceModel, HuggingFaceFile, ModelCategory } from '../../shared/types';
 
 type Tab = 'local' | 'browse' | 'downloads';
 
@@ -46,7 +46,7 @@ const ModelsScreen: React.FC = () => {
 
 // ── Local Models Tab ──
 
-type SortKey = 'name' | 'size' | 'quant' | 'params';
+type SortKey = 'name' | 'size' | 'quant' | 'params' | 'category';
 type SortDir = 'asc' | 'desc';
 
 /** Parse parameter strings like "3B", "70B", "0.5B" into a comparable number */
@@ -86,6 +86,9 @@ const LocalModelsTab: React.FC = () => {
       case 'params':
         cmp = parseParams(a.parameters) - parseParams(b.parameters);
         break;
+      case 'category':
+        cmp = a.category.localeCompare(b.category);
+        break;
     }
     return sortDir === 'asc' ? cmp : -cmp;
   });
@@ -120,6 +123,7 @@ const LocalModelsTab: React.FC = () => {
         <thead>
           <tr style={{ borderBottom: '1px solid #2a2a2a' }}>
             <th style={thClickStyle} onClick={() => toggleSort('name')}>Name{arrow('name')}</th>
+            <th style={{ ...thClickStyle, width: 90 }} onClick={() => toggleSort('category')}>Type{arrow('category')}</th>
             <th style={{ ...thClickStyle, width: 110 }} onClick={() => toggleSort('size')}>Size{arrow('size')}</th>
             <th style={{ ...thClickStyle, width: 100 }} onClick={() => toggleSort('quant')}>Quant{arrow('quant')}</th>
             <th style={{ ...thClickStyle, width: 100 }} onClick={() => toggleSort('params')}>Params{arrow('params')}</th>
@@ -138,6 +142,9 @@ const LocalModelsTab: React.FC = () => {
                     {model.repo}
                   </div>
                 )}
+              </td>
+              <td style={tdStyle}>
+                <CategoryBadge category={model.category} />
               </td>
               <td style={{ ...tdStyle, color: '#aaa', fontFamily: 'monospace', fontSize: '0.8rem' }}>
                 {formatBytes(model.sizeBytes)}
@@ -168,6 +175,12 @@ const LocalModelsTab: React.FC = () => {
 
 // ── HuggingFace Browser Tab ──
 
+/** Client-side category detection (mirrors server-side logic) */
+const IMAGE_MODEL_PATTERN = /(?:^|[_\-.\s])(sd|sdxl|flux|diffusion|stable.?diffusion|turbo|lora|z[_\-.]?image)(?=[\d_\-.\s]|$)/i;
+function detectCategory(filename: string): ModelCategory {
+  return IMAGE_MODEL_PATTERN.test(filename) ? 'image' : 'chat';
+}
+
 const HuggingFaceBrowserTab: React.FC = () => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<HuggingFaceModel[]>([]);
@@ -177,6 +190,7 @@ const HuggingFaceBrowserTab: React.FC = () => {
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [downloading, setDownloading] = useState<Set<string>>(new Set());
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [categoryOverrides, setCategoryOverrides] = useState<Record<string, ModelCategory>>({});
 
   const handleSearch = useCallback(async () => {
     if (!query.trim()) return;
@@ -192,6 +206,7 @@ const HuggingFaceBrowserTab: React.FC = () => {
   const handleOpenRepo = async (model: HuggingFaceModel) => {
     setOpenRepo(model);
     setSelectedFiles(new Set());
+    setCategoryOverrides({});
     setLoadingFiles(true);
     try {
       const files = await window.tasmania.listModelFiles(model.id);
@@ -205,6 +220,7 @@ const HuggingFaceBrowserTab: React.FC = () => {
     setOpenRepo(null);
     setRepoFiles([]);
     setSelectedFiles(new Set());
+    setCategoryOverrides({});
   };
 
   const toggleFileSelection = (filename: string) => {
@@ -219,6 +235,9 @@ const HuggingFaceBrowserTab: React.FC = () => {
     });
   };
 
+  const getFileCategory = (filename: string): ModelCategory =>
+    categoryOverrides[filename] ?? detectCategory(filename);
+
   const handleDownloadSelected = (repo: string) => {
     for (const filename of selectedFiles) {
       handleDownload(repo, filename);
@@ -230,7 +249,7 @@ const HuggingFaceBrowserTab: React.FC = () => {
     const key = `${repo}/${filename}`;
     setDownloading((prev) => new Set(prev).add(key));
     try {
-      await window.tasmania.downloadModel(repo, filename);
+      await window.tasmania.downloadModel(repo, filename, getFileCategory(filename));
     } catch {
       // errors shown via download progress
     }
@@ -320,6 +339,7 @@ const HuggingFaceBrowserTab: React.FC = () => {
               const key = `${openRepo.id}/${file.filename}`;
               const isDownloading = downloading.has(key);
               const isSelected = selectedFiles.has(file.filename);
+              const fileCat = getFileCategory(file.filename);
               return (
                 <div
                   key={file.filename}
@@ -345,22 +365,47 @@ const HuggingFaceBrowserTab: React.FC = () => {
                       <div style={{ fontSize: '0.75rem', color: '#666' }}>{formatBytes(file.sizeBytes)}</div>
                     </div>
                   </div>
-                  {isDownloading ? (
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      onClick={() => window.tasmania.cancelDownload(key)}
-                    >
-                      Cancel
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={() => handleDownload(openRepo.id, file.filename)}
-                    >
-                      Download
-                    </Button>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {/* Category toggle */}
+                    <div style={{ display: 'flex', gap: 0 }}>
+                      {(['chat', 'image'] as const).map((cat, i, arr) => (
+                        <button
+                          key={cat}
+                          onClick={() => setCategoryOverrides((prev) => ({ ...prev, [file.filename]: cat }))}
+                          style={{
+                            padding: '3px 8px',
+                            fontSize: '0.7rem',
+                            fontWeight: fileCat === cat ? 600 : 400,
+                            background: fileCat === cat ? `${CATEGORY_COLORS[cat]}22` : 'transparent',
+                            color: fileCat === cat ? CATEGORY_COLORS[cat] : '#555',
+                            border: `1px solid ${fileCat === cat ? CATEGORY_COLORS[cat] + '44' : '#333'}`,
+                            borderRadius: i === 0 ? '4px 0 0 4px' : i === arr.length - 1 ? '0 4px 4px 0' : '0',
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                            textTransform: 'capitalize',
+                          }}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                    {isDownloading ? (
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => window.tasmania.cancelDownload(key)}
+                      >
+                        Cancel
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => handleDownload(openRepo.id, file.filename)}
+                      >
+                        Download
+                      </Button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -527,6 +572,30 @@ const DownloadsTab: React.FC = () => {
     </div>
   );
 };
+
+// ── Category Badge ──
+
+const CATEGORY_COLORS: Record<ModelCategory, string> = {
+  chat: '#60a5fa',
+  image: '#a78bfa',
+  video: '#34d399',
+};
+
+const CategoryBadge: React.FC<{ category: ModelCategory }> = ({ category }) => (
+  <span
+    style={{
+      fontSize: '0.7rem',
+      padding: '2px 8px',
+      borderRadius: 4,
+      background: `${CATEGORY_COLORS[category]}22`,
+      color: CATEGORY_COLORS[category],
+      fontWeight: 600,
+      textTransform: 'capitalize',
+    }}
+  >
+    {category}
+  </span>
+);
 
 // ── Helpers ──
 

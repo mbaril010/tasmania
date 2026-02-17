@@ -1,6 +1,6 @@
 // ── Backend Types ──
 
-export type BackendType = 'llama.cpp' | 'stable-diffusion' | 'comfyui';
+export type BackendType = 'llama.cpp' | 'stable-diffusion' | 'comfyui' | 'exo';
 
 export type ServerStatus = 'stopped' | 'starting' | 'running' | 'error';
 
@@ -41,6 +41,8 @@ export interface MemoryPreflightResult {
 
 // ── Model Types ──
 
+export type ModelCategory = 'chat' | 'image' | 'video';
+
 export interface LocalModel {
   name: string;
   filename: string;
@@ -51,6 +53,7 @@ export interface LocalModel {
   parameters: string | null;
   architecture: string | null;
   addedAt: number;
+  category: ModelCategory;
 }
 
 export interface HuggingFaceModel {
@@ -82,7 +85,7 @@ export interface DownloadProgress {
 
 // ── Image Model Architecture Types ──
 
-export type ImageModelArch = 'sd1' | 'sdxl' | 'flux' | 'sd3' | 'chroma' | 'z_image';
+export type ImageModelArch = 'sd1' | 'sdxl' | 'flux' | 'flux2' | 'sd3' | 'chroma' | 'z_image';
 
 export type CompanionRole = 'diffusion_model' | 't5xxl' | 'clip_l' | 'clip_g' | 'vae' | 'text_encoder';
 
@@ -134,6 +137,7 @@ export interface ImageGenerationResult {
   b64: string;
   seed: number;
   timingMs: number;
+  savedPath?: string;
 }
 
 // ── Video Generation Types ──
@@ -163,6 +167,28 @@ export interface VideoGenerationResult {
   timingMs: number;
 }
 
+// ── Exo Cluster Types ──
+
+export interface ExoClusterNode {
+  id: string;
+  name: string;
+  model: string;
+  memory: number;
+  flops: number;
+  isCoordinator: boolean;
+}
+
+export interface ExoClusterState {
+  nodes: ExoClusterNode[];
+  nodeId: string;
+}
+
+export interface ExoModel {
+  id: string;
+  name: string;
+  owned_by: string;
+}
+
 // ── Settings Types ──
 
 export interface AppSettings {
@@ -185,6 +211,15 @@ export interface AppSettings {
     path: string;
     port: number;
     pythonPath: string;
+  };
+  exo: {
+    host: string;
+    port: number;
+    autoConnect: boolean;
+  };
+  imageOutput: {
+    autoSave: boolean;
+    outputDir: string;
   };
   theme: 'light' | 'dark' | 'system';
 }

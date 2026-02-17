@@ -2,7 +2,7 @@ import Store from 'electron-store';
 import path from 'node:path';
 import os from 'node:os';
 import type { AppSettings } from '../../shared/types';
-import { LLAMA_CPP_DEFAULT_PORT, DEFAULT_CONTEXT_SIZE, DEFAULT_GPU_LAYERS, SD_DEFAULT_PORT, SD_DEFAULT_STEPS, SD_DEFAULT_CFG_SCALE, SD_DEFAULT_WIDTH, SD_DEFAULT_HEIGHT, COMFYUI_DEFAULT_PORT, COMFYUI_DEFAULT_PYTHON } from '../../shared/constants';
+import { LLAMA_CPP_DEFAULT_PORT, DEFAULT_CONTEXT_SIZE, DEFAULT_GPU_LAYERS, SD_DEFAULT_PORT, SD_DEFAULT_STEPS, SD_DEFAULT_CFG_SCALE, SD_DEFAULT_WIDTH, SD_DEFAULT_HEIGHT, COMFYUI_DEFAULT_PORT, COMFYUI_DEFAULT_PYTHON, EXO_DEFAULT_HOST, EXO_DEFAULT_PORT, DEFAULT_IMAGE_OUTPUT_DIR } from '../../shared/constants';
 
 const DEFAULT_MODELS_DIR = path.join(
   os.homedir(),
@@ -33,6 +33,15 @@ const defaults: AppSettings = {
     port: COMFYUI_DEFAULT_PORT,
     pythonPath: COMFYUI_DEFAULT_PYTHON,
   },
+  exo: {
+    host: EXO_DEFAULT_HOST,
+    port: EXO_DEFAULT_PORT,
+    autoConnect: false,
+  },
+  imageOutput: {
+    autoSave: true,
+    outputDir: DEFAULT_IMAGE_OUTPUT_DIR,
+  },
   theme: 'system',
 };
 
@@ -53,4 +62,16 @@ export function setSettings(partial: Partial<AppSettings>): void {
 
 export function getModelsDir(): string {
   return store.get('modelsDir', DEFAULT_MODELS_DIR);
+}
+
+export function getChatModelsDir(): string {
+  return path.join(getModelsDir(), 'chat');
+}
+
+export function getImageModelsDir(): string {
+  return path.join(getModelsDir(), 'image');
+}
+
+export function getVideoModelsDir(): string {
+  return path.join(getModelsDir(), 'video');
 }

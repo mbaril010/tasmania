@@ -33,5 +33,10 @@ export const SD_DEFAULT_HEIGHT = 512;
 export const COMFYUI_DEFAULT_PORT = 8188;
 export const COMFYUI_DEFAULT_PYTHON = 'python3';
 
+export const EXO_DEFAULT_HOST = '127.0.0.1';
+export const EXO_DEFAULT_PORT = 52415;
+
+export const DEFAULT_IMAGE_OUTPUT_DIR = path.join(os.homedir(), 'Pictures', APP_NAME);
+
 export const HF_API_BASE = 'https://huggingface.co/api';
 export const HF_DOWNLOAD_BASE = 'https://huggingface.co';

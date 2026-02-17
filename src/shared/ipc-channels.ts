@@ -73,6 +73,28 @@ export const IPC = {
   VIDEO_LOG_LINE: 'video:log-line',
   VIDEO_GENERATION_PROGRESS: 'video:generation-progress',
 
+  // Exo cluster operations
+  EXO_CONNECT: 'exo:connect',
+  EXO_DISCONNECT: 'exo:disconnect',
+  EXO_STATUS: 'exo:status',
+  EXO_LOGS: 'exo:logs',
+  EXO_CLUSTER_STATE: 'exo:cluster-state',
+  EXO_LIST_MODELS: 'exo:list-models',
+  EXO_SEARCH_MODELS: 'exo:search-models',
+  EXO_ADD_MODEL: 'exo:add-model',
+  EXO_DELETE_MODEL: 'exo:delete-model',
+  EXO_INSTANCE_PREVIEW: 'exo:instance-preview',
+  EXO_CREATE_INSTANCE: 'exo:create-instance',
+  EXO_DELETE_INSTANCE: 'exo:delete-instance',
+  EXO_START_DOWNLOAD: 'exo:start-download',
+  EXO_CANCEL_DOWNLOAD: 'exo:cancel-download',
+
+  // Exo events (main → renderer)
+  EXO_STATUS_CHANGED: 'exo:status-changed',
+  EXO_LOG_LINE: 'exo:log-line',
+  EXO_CLUSTER_CHANGED: 'exo:cluster-changed',
+  EXO_DOWNLOAD_PROGRESS: 'exo:download-progress',
+
   // Terminal operations
   TERMINAL_CREATE: 'terminal:create',
   TERMINAL_WRITE: 'terminal:write',

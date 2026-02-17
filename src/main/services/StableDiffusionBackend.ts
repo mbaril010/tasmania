@@ -43,6 +43,11 @@ const ARCH_COMPANIONS: Record<ImageModelArch, CompanionSpec[]> = {
     { role: 'clip_l', flag: '--clip_l', required: true, patterns: [/clip_l.*\.(gguf|safetensors)$/i] },
     { role: 'vae', flag: '--vae', required: true, patterns: [/(?:ae|vae).*\.(gguf|safetensors)$/i] },
   ],
+  flux2: [
+    { role: 'diffusion_model', flag: '--diffusion-model', required: true, patterns: [/flux2.*\.(gguf|safetensors)$/i] },
+    { role: 'text_encoder', flag: '--llm', required: true, patterns: [/mistral.*\.(gguf|safetensors)$/i] },
+    { role: 'vae', flag: '--vae', required: true, patterns: [/(?:ae|vae).*\.(gguf|safetensors)$/i] },
+  ],
   z_image: [
     { role: 'diffusion_model', flag: '--diffusion-model', required: true, patterns: [/z[_\-.]?image.*\.(gguf|safetensors)$/i] },
     { role: 'text_encoder', flag: '--llm', required: true, patterns: [/qwen.*\.(gguf|safetensors)$/i] },
@@ -65,6 +70,7 @@ const ARCH_COMPANIONS: Record<ImageModelArch, CompanionSpec[]> = {
 function detectArch(filename: string): ImageModelArch {
   const lower = filename.toLowerCase();
   if (/z[_\-.]?image/i.test(lower)) return 'z_image';
+  if (/flux\s*2/i.test(lower)) return 'flux2';
   if (/flux/i.test(lower)) return 'flux';
   if (/sd3\.?5|sd3/i.test(lower)) return 'sd3';
   if (/chroma/i.test(lower)) return 'chroma';

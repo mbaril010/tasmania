@@ -4,6 +4,7 @@ import type {
   BackendInfo,
   BackendType,
   DownloadProgress,
+  ExoClusterState,
   LocalModel,
   ServerState,
   UpdateCheckResult,
@@ -26,6 +27,13 @@ interface AppContextValue {
   // Video backend state (ComfyUI)
   videoServerState: ServerState;
   videoServerLogs: string[];
+
+  // Exo cluster state
+  exoServerState: ServerState;
+  exoServerLogs: string[];
+  exoClusterState: ExoClusterState | null;
+  connectExo: () => Promise<void>;
+  disconnectExo: () => Promise<void>;
 
   // Model state
   models: LocalModel[];
@@ -74,6 +82,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [imageServerLogs, setImageServerLogs] = useState<string[]>([]);
   const [videoServerState, setVideoServerState] = useState<ServerState>(defaultServerState);
   const [videoServerLogs, setVideoServerLogs] = useState<string[]>([]);
+  const [exoServerState, setExoServerState] = useState<ServerState>(defaultServerState);
+  const [exoServerLogs, setExoServerLogs] = useState<string[]>([]);
+  const [exoClusterState, setExoClusterState] = useState<ExoClusterState | null>(null);
   const [models, setModels] = useState<LocalModel[]>([]);
   const [downloads, setDownloads] = useState<DownloadProgress[]>([]);
   const [settings, setSettingsState] = useState<AppSettings | null>(null);
@@ -98,6 +109,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     api.image.getLogs().then(setImageServerLogs);
     api.video.getStatus().then(setVideoServerState);
     api.video.getLogs().then(setVideoServerLogs);
+    api.exo.getStatus().then(setExoServerState);
+    api.exo.getLogs().then(setExoServerLogs);
+    api.exo.getClusterState().then(setExoClusterState);
 
     // Subscribe to events
     const unsub1 = api.onServerStatusChanged((state) => {
@@ -145,7 +159,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setVideoServerLogs((prev) => [...prev.slice(-499), line]);
     });
 
-    cleanupRef.current = [unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7, unsub8];
+    const unsub9 = api.exo.onStatusChanged((state) => {
+      setExoServerState(state);
+    });
+
+    const unsub10 = api.exo.onLogLine((line) => {
+      setExoServerLogs((prev) => [...prev.slice(-499), line]);
+    });
+
+    const unsub11 = api.exo.onClusterChanged((state) => {
+      setExoClusterState(state);
+    });
+
+    cleanupRef.current = [unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7, unsub8, unsub9, unsub10, unsub11];
 
     return () => {
       cleanupRef.current.forEach((fn) => fn());
@@ -195,6 +221,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSettingsState(updated);
   }, []);
 
+  const connectExo = useCallback(async () => {
+    await window.tasmania.exo.connect();
+    const state = await window.tasmania.exo.getStatus();
+    setExoServerState(state);
+    const cluster = await window.tasmania.exo.getClusterState();
+    setExoClusterState(cluster);
+  }, []);
+
+  const disconnectExo = useCallback(async () => {
+    await window.tasmania.exo.disconnect();
+    const state = await window.tasmania.exo.getStatus();
+    setExoServerState(state);
+    setExoClusterState(null);
+  }, []);
+
   const checkForUpdates = useCallback(async () => {
     const result = await window.tasmania.checkForUpdates();
     if (result.updateInfo) {
@@ -216,6 +257,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         imageServerLogs,
         videoServerState,
         videoServerLogs,
+        exoServerState,
+        exoServerLogs,
+        exoClusterState,
+        connectExo,
+        disconnectExo,
         models,
         downloads,
         refreshModels,
