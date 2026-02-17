@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { DownloadCount } from "./download-count";
 
 function Nav() {
   return (
@@ -43,6 +44,7 @@ function Hero() {
             Learn more
           </a>
         </div>
+        <DownloadCount />
       </div>
     </section>
   );
