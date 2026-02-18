@@ -98,7 +98,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model: 'local',
+            model: serverState.backend === 'exo' ? (serverState.modelName ?? 'local') : 'local',
             messages: requestMessages,
             max_tokens: mode === 'code' ? 4096 : 2048,
             temperature: mode === 'code' ? 0.3 : 0.7,

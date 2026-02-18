@@ -94,16 +94,18 @@ async function controlApi(apiPath: string, options?: RequestInit): Promise<unkno
 // ── Helper: Forward a prompt to the active LLM ──
 
 async function queryLlm(prompt: string, maxTokens = 500, temperature = 0.7): Promise<string> {
-  const status = (await controlApi('/api/status')) as { endpoint?: string; status?: string };
+  const status = (await controlApi('/api/status')) as { endpoint?: string; status?: string; backend?: string; modelName?: string };
   if (!status.endpoint || status.status !== 'running') {
     throw new Error('No LLM server is currently running. Start a server in the Tasmania app first.');
   }
+
+  const modelId = status.backend === 'exo' ? (status.modelName ?? 'local') : 'local';
 
   const response = await fetch(`${status.endpoint}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'local',
+      model: modelId,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: maxTokens,
       temperature,

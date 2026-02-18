@@ -15,6 +15,15 @@ const config: ForgeConfig = {
       './node_modules/@lydell/node-pty-darwin-arm64',
       './dist-mcp',
     ],
+    osxSign: {
+      entitlements: './entitlements/entitlements.mac.plist',
+      entitlementsInherit: './entitlements/entitlements.mac.inherit.plist',
+    },
+    osxNotarize: {
+      appleId: process.env.APPLE_ID!,
+      appleIdPassword: process.env.APPLE_ID_PASSWORD!,
+      teamId: 'SBQZY8LF6G',
+    },
   },
   makers: [
     new MakerZIP({}, ['darwin']),

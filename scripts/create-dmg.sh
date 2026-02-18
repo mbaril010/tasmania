@@ -39,6 +39,26 @@ hdiutil create \
 # Clean up
 rm -rf "$STAGING_DIR"
 
+# Sign the DMG
+echo "→ Signing DMG..."
+codesign --sign "Developer ID Application: Mathieu Baril (SBQZY8LF6G)" "$DMG_PATH"
+
+# Notarize the DMG
+if [[ -n "${APPLE_ID:-}" && -n "${APPLE_ID_PASSWORD:-}" ]]; then
+  echo "→ Submitting DMG for notarization..."
+  xcrun notarytool submit "$DMG_PATH" \
+    --apple-id "$APPLE_ID" \
+    --password "$APPLE_ID_PASSWORD" \
+    --team-id "SBQZY8LF6G" \
+    --wait
+
+  echo "→ Stapling notarization ticket..."
+  xcrun stapler staple "$DMG_PATH"
+else
+  echo "⚠ APPLE_ID / APPLE_ID_PASSWORD not set — skipping notarization."
+  echo "  Set them to notarize: export APPLE_ID=you@example.com APPLE_ID_PASSWORD=xxxx-xxxx-xxxx-xxxx"
+fi
+
 echo ""
 echo "✔ DMG created: $DMG_PATH"
 echo "  Size: $(du -sh "$DMG_PATH" | cut -f1)"

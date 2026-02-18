@@ -85,8 +85,11 @@ export class ExoBackend extends BackendService {
 
     this.log(`Creating instance for model: ${modelId}`);
 
-    // Create instance
-    const resp = await this.fetchExo('/instance', {
+    // Snapshot existing instance IDs so we can detect the new one
+    const existingIds = await this.getInstanceIds();
+
+    // place_instance creates + schedules in one step
+    const resp = await this.fetchExo('/place_instance', {
       method: 'POST',
       body: JSON.stringify({ model_id: modelId }),
     });
@@ -96,39 +99,44 @@ export class ExoBackend extends BackendService {
       throw new Error(`Failed to create instance: ${resp.status} ${text}`);
     }
 
-    const data = await resp.json() as { instance_id: string };
-    this.activeInstanceId = data.instance_id;
+    this.activeModelName = modelId;
+    this.log('Instance placement requested, waiting for runners...');
 
-    // Place instance (trigger scheduling)
-    const placeResp = await this.fetchExo(`/instance/${this.activeInstanceId}/place`, {
-      method: 'POST',
-    });
-    if (!placeResp.ok) {
-      this.log(`Warning: place_instance returned ${placeResp.status}`);
-    }
-
-    // Poll until running (max 60s)
+    // Poll /state to find the new instance and wait for runners to be ready
     const deadline = Date.now() + 60_000;
     while (Date.now() < deadline) {
-      const statusResp = await this.fetchExo(`/instance/${this.activeInstanceId}`);
-      if (statusResp.ok) {
-        const info = await statusResp.json() as { status: string };
-        if (info.status === 'running') {
-          this.activeModelName = modelId;
-          this.log(`Instance ${this.activeInstanceId} is running`);
+      const state = await this.fetchState();
+      const instances = state.instances ?? {};
+      const runners = state.runners ?? {};
+
+      // Find the new instance (not in the snapshot)
+      for (const id of Object.keys(instances)) {
+        if (existingIds.has(id)) continue;
+
+        this.activeInstanceId = id;
+
+        // Get runner IDs from the instance's shard assignments
+        const inst = instances[id] as Record<string, unknown>;
+        const runnerIds = this.extractRunnerIds(inst);
+
+        const allReady = runnerIds.length > 0 && runnerIds.every((rid) => {
+          const status = runners[rid] as Record<string, unknown> | undefined;
+          return status && 'RunnerReady' in status;
+        });
+
+        if (allReady) {
+          this.log(`Instance ${id} is running with all runners ready`);
           this.events.emit('status-changed');
           return;
         }
-        if (info.status === 'failed' || info.status === 'error') {
-          this.activeInstanceId = null;
-          throw new Error(`Instance failed to start: ${info.status}`);
-        }
       }
+
       await sleep(1_000);
     }
 
     // Timeout
     this.activeInstanceId = null;
+    this.activeModelName = null;
     throw new Error('Instance did not become ready within 60 seconds');
   }
 
@@ -276,6 +284,32 @@ export class ExoBackend extends BackendService {
   }
 
   // ── Internal helpers ──
+
+  private async fetchState(): Promise<Record<string, Record<string, unknown>>> {
+    const resp = await this.fetchExo('/state');
+    if (!resp.ok) return {};
+    return await resp.json() as Record<string, Record<string, unknown>>;
+  }
+
+  private async getInstanceIds(): Promise<Set<string>> {
+    const state = await this.fetchState();
+    return new Set(Object.keys(state.instances ?? {}));
+  }
+
+  /**
+   * Extract runner IDs from an instance object.
+   * Instance shape: { MlxRingInstance: { shardAssignments: { runnerToShard: { runnerId: ... } } } }
+   */
+  private extractRunnerIds(inst: Record<string, unknown>): string[] {
+    // Instance is wrapped in its type key (MlxRingInstance or MlxJacclInstance)
+    const inner = (inst.MlxRingInstance ?? inst.MlxJacclInstance) as Record<string, unknown> | undefined;
+    if (!inner) return [];
+    const shards = inner.shardAssignments as Record<string, unknown> | undefined;
+    if (!shards) return [];
+    const runnerToShard = shards.runnerToShard as Record<string, unknown> | undefined;
+    if (!runnerToShard) return [];
+    return Object.keys(runnerToShard);
+  }
 
   private async probe(): Promise<boolean> {
     try {
