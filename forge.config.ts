@@ -19,11 +19,17 @@ const config: ForgeConfig = {
       entitlements: './entitlements/entitlements.mac.plist',
       entitlementsInherit: './entitlements/entitlements.mac.inherit.plist',
     },
-    osxNotarize: {
-      appleId: process.env.APPLE_ID!,
-      appleIdPassword: process.env.APPLE_ID_PASSWORD!,
-      teamId: 'SBQZY8LF6G',
-    },
+    ...(process.env.APPLE_ID && process.env.APPLE_ID_PASSWORD
+      ? {
+          osxNotarize: {
+            appleId: process.env.APPLE_ID,
+            appleIdPassword: process.env.APPLE_ID_PASSWORD,
+            teamId: 'SBQZY8LF6G',
+          },
+        }
+      : process.env.NOTARIZE !== '0'
+        ? { osxNotarize: { keychainProfile: 'tasmania-notarize' } }
+        : {}),
   },
   makers: [
     new MakerZIP({}, ['darwin']),

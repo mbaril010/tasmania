@@ -54,9 +54,18 @@ if [[ -n "${APPLE_ID:-}" && -n "${APPLE_ID_PASSWORD:-}" ]]; then
 
   echo "→ Stapling notarization ticket..."
   xcrun stapler staple "$DMG_PATH"
+elif xcrun notarytool history --keychain-profile "tasmania-notarize" &>/dev/null; then
+  echo "→ Submitting DMG for notarization (keychain profile)..."
+  xcrun notarytool submit "$DMG_PATH" \
+    --keychain-profile "tasmania-notarize" \
+    --wait
+
+  echo "→ Stapling notarization ticket..."
+  xcrun stapler staple "$DMG_PATH"
 else
-  echo "⚠ APPLE_ID / APPLE_ID_PASSWORD not set — skipping notarization."
-  echo "  Set them to notarize: export APPLE_ID=you@example.com APPLE_ID_PASSWORD=xxxx-xxxx-xxxx-xxxx"
+  echo "⚠ No notarization credentials found — skipping."
+  echo "  Option 1: xcrun notarytool store-credentials tasmania-notarize"
+  echo "  Option 2: export APPLE_ID=... APPLE_ID_PASSWORD=..."
 fi
 
 echo ""
