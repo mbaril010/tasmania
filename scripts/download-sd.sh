@@ -1,103 +1,144 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-BINARIES_DIR="$(cd "$(dirname "$0")/.." && pwd)/binaries"
-BINARY_PATH="$BINARIES_DIR/sd-server"
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+BINARIES_DIR="${ROOT_DIR}/binaries"
+BINARY_PATH="${BINARIES_DIR}/sd-server"
+MANIFEST_PATH="${ROOT_DIR}/scripts/binary-manifest.json"
+VERIFY_ONLY="${1:-}"
 
-# Skip if binary already exists
-if [ -f "$BINARY_PATH" ]; then
-  echo "[download-sd] sd-server already exists at $BINARY_PATH, skipping."
-  exit 0
-fi
-
-echo "[download-sd] Fetching latest stable-diffusion.cpp release info..."
-RELEASE_JSON=$(curl -s https://api.github.com/repos/leejet/stable-diffusion.cpp/releases/latest)
-TAG=$(echo "$RELEASE_JSON" | grep '"tag_name"' | head -1 | sed 's/.*: "//;s/".*//')
-
-if [ -z "$TAG" ]; then
-  echo "[download-sd] ERROR: Could not determine latest release tag."
+if [[ ! -f "$MANIFEST_PATH" ]]; then
+  echo "[download-sd] ERROR: Missing manifest: $MANIFEST_PATH"
   exit 1
 fi
 
-# Determine platform — look for macOS ARM asset
-ARCH=$(uname -m)
-if [ "$ARCH" != "arm64" ] && [ "$ARCH" != "x86_64" ]; then
+ARCH="$(uname -m)"
+if [[ "$ARCH" != "arm64" && "$ARCH" != "x86_64" ]]; then
   echo "[download-sd] ERROR: Unsupported architecture: $ARCH"
   exit 1
 fi
 
-# Asset naming is irregular — grep for matching asset URL from release JSON
-if [ "$ARCH" = "arm64" ]; then
-  ASSET_URL=$(echo "$RELEASE_JSON" | grep '"browser_download_url"' | grep -i 'darwin.*arm64' | head -1 | sed 's/.*: "//;s/".*//')
-else
-  ASSET_URL=$(echo "$RELEASE_JSON" | grep '"browser_download_url"' | grep -i 'darwin.*x64\|darwin.*x86_64' | head -1 | sed 's/.*: "//;s/".*//')
+EXPECTED_SHA="$(node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(m.stableDiffusion?.[process.argv[2]]?.binarySha256||'');" "$MANIFEST_PATH" "$ARCH")"
+PINNED_TAG="$(node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(m.stableDiffusion?.releaseTag||'');" "$MANIFEST_PATH")"
+
+if [[ -z "$EXPECTED_SHA" ]]; then
+  echo "[download-sd] ERROR: No pinned checksum for architecture: $ARCH"
+  echo "[download-sd] Update scripts/binary-manifest.json before downloading."
+  exit 1
 fi
 
-if [ -z "$ASSET_URL" ]; then
+verify_checksum() {
+  local file="$1"
+  local expected="$2"
+  local actual
+  actual="$(shasum -a 256 "$file" | awk '{print $1}')"
+  if [[ "$actual" != "$expected" ]]; then
+    echo "[download-sd] ERROR: SHA256 mismatch for $(basename "$file")"
+    echo "  expected: $expected"
+    echo "  actual:   $actual"
+    return 1
+  fi
+  return 0
+}
+
+if [[ "$VERIFY_ONLY" == "--verify-only" ]]; then
+  if [[ ! -f "$BINARY_PATH" ]]; then
+    echo "[download-sd] ERROR: Binary not found at $BINARY_PATH"
+    exit 1
+  fi
+  verify_checksum "$BINARY_PATH" "$EXPECTED_SHA"
+  echo "[download-sd] OK: checksum verified for existing sd-server"
+  exit 0
+fi
+
+if [[ -f "$BINARY_PATH" ]]; then
+  if verify_checksum "$BINARY_PATH" "$EXPECTED_SHA"; then
+    echo "[download-sd] sd-server already exists and checksum is valid, skipping."
+    exit 0
+  fi
+  echo "[download-sd] ERROR: Existing sd-server failed checksum verification."
+  exit 1
+fi
+
+if [[ -n "$PINNED_TAG" ]]; then
+  echo "[download-sd] Fetching pinned stable-diffusion.cpp release info for tag $PINNED_TAG..."
+  RELEASE_JSON="$(curl -fsS "https://api.github.com/repos/leejet/stable-diffusion.cpp/releases/tags/${PINNED_TAG}")"
+  TAG="$PINNED_TAG"
+else
+  echo "[download-sd] Fetching latest stable-diffusion.cpp release info..."
+  RELEASE_JSON="$(curl -fsS https://api.github.com/repos/leejet/stable-diffusion.cpp/releases/latest)"
+  TAG="$(echo "$RELEASE_JSON" | grep '"tag_name"' | head -1 | sed 's/.*: "//;s/".*//')"
+fi
+
+if [[ -z "$TAG" ]]; then
+  echo "[download-sd] ERROR: Could not determine release tag."
+  exit 1
+fi
+
+if [[ "$ARCH" == "arm64" ]]; then
+  ASSET_URL="$(echo "$RELEASE_JSON" | grep '"browser_download_url"' | grep -i 'darwin.*arm64' | head -1 | sed 's/.*: "//;s/".*//')"
+else
+  ASSET_URL="$(echo "$RELEASE_JSON" | grep '"browser_download_url"' | grep -i 'darwin.*x64\|darwin.*x86_64' | head -1 | sed 's/.*: "//;s/".*//')"
+fi
+
+if [[ -z "$ASSET_URL" ]]; then
   echo "[download-sd] ERROR: Could not find macOS $ARCH asset in release $TAG."
   echo "[download-sd] Available assets:"
   echo "$RELEASE_JSON" | grep '"browser_download_url"' | sed 's/.*: "//;s/".*//'
   exit 1
 fi
 
-ASSET_NAME=$(basename "$ASSET_URL")
+ASSET_NAME="$(basename "$ASSET_URL")"
 echo "[download-sd] Downloading $ASSET_NAME ($TAG)..."
 mkdir -p "$BINARIES_DIR"
 
-TMPDIR=$(mktemp -d)
-curl -L --progress-bar -o "$TMPDIR/$ASSET_NAME" "$ASSET_URL"
+TMPDIR="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR"' EXIT
+curl -fL --progress-bar -o "$TMPDIR/$ASSET_NAME" "$ASSET_URL"
 
 echo "[download-sd] Extracting sd-server and libraries..."
-
-# Handle both .zip and .tar.gz archives
 case "$ASSET_NAME" in
   *.tar.gz) tar -xzf "$TMPDIR/$ASSET_NAME" -C "$TMPDIR" ;;
   *.zip)    unzip -q "$TMPDIR/$ASSET_NAME" -d "$TMPDIR" ;;
-  *)        echo "[download-sd] ERROR: Unknown archive format: $ASSET_NAME"; rm -rf "$TMPDIR"; exit 1 ;;
+  *)        echo "[download-sd] ERROR: Unknown archive format: $ASSET_NAME"; exit 1 ;;
 esac
 
-# Find the extraction directory
-EXTRACT_DIR=$(find "$TMPDIR" -mindepth 1 -maxdepth 1 -type d | head -1)
-if [ -z "$EXTRACT_DIR" ]; then
+EXTRACT_DIR="$(find "$TMPDIR" -mindepth 1 -maxdepth 1 -type d | head -1)"
+if [[ -z "$EXTRACT_DIR" ]]; then
   EXTRACT_DIR="$TMPDIR"
 fi
 
-# Copy sd-server binary (might be named sd or sd-server)
-FOUND=$(find "$EXTRACT_DIR" -name "sd-server" -type f | head -1)
-if [ -z "$FOUND" ]; then
-  # Fallback: look for 'sd' binary
-  FOUND=$(find "$EXTRACT_DIR" -name "sd" -type f | head -1)
+FOUND="$(find "$EXTRACT_DIR" -name "sd-server" -type f | head -1)"
+if [[ -z "$FOUND" ]]; then
+  FOUND="$(find "$EXTRACT_DIR" -name "sd" -type f | head -1)"
 fi
-if [ -z "$FOUND" ]; then
+if [[ -z "$FOUND" ]]; then
   echo "[download-sd] ERROR: sd-server binary not found in archive."
   echo "[download-sd] Archive contents:"
   find "$EXTRACT_DIR" -type f
-  rm -rf "$TMPDIR"
   exit 1
 fi
+
 cp "$FOUND" "$BINARY_PATH"
 chmod +x "$BINARY_PATH"
+verify_checksum "$BINARY_PATH" "$EXPECTED_SHA"
 
-# Copy all shared libraries (.dylib) — required for sd-server to run
 LIB_COUNT=0
 while IFS= read -r lib; do
-  [ -f "$lib" ] || continue
+  [[ -f "$lib" ]] || continue
   cp "$lib" "$BINARIES_DIR/"
   LIB_COUNT=$((LIB_COUNT + 1))
 done < <(find "$EXTRACT_DIR" -name "*.dylib" -type f)
 
-# Also check top-level TMPDIR for dylibs
 for lib in "$TMPDIR"/*.dylib; do
-  [ -f "$lib" ] || continue
+  [[ -f "$lib" ]] || continue
   cp "$lib" "$BINARIES_DIR/"
   LIB_COUNT=$((LIB_COUNT + 1))
 done
 echo "[download-sd] Copied $LIB_COUNT shared libraries."
 
-# Remove quarantine attribute on all binaries (macOS blocks downloaded binaries)
+# Remove quarantine after checksum verification succeeds.
 xattr -cr "$BINARIES_DIR" 2>/dev/null || true
-
-rm -rf "$TMPDIR"
 
 echo "[download-sd] Done! sd-server ($TAG) installed at $BINARIES_DIR"
 ls -lh "$BINARIES_DIR/sd-server" "$BINARIES_DIR"/*.dylib 2>/dev/null || true

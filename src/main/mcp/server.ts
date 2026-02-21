@@ -29,6 +29,7 @@ import {
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { assertSafeHttpUrl, fetchTextWithLimits, stripHtmlToText } from '../security/url-utils';
 
 const CONTROL_API = 'http://localhost:3999';
 
@@ -122,30 +123,6 @@ async function queryLlm(prompt: string, maxTokens = 500, temperature = 0.7): Pro
   return data.choices?.[0]?.message?.content ?? '';
 }
 
-// ── Helper: Strip HTML to plain text ──
-
-function stripHtml(html: string): string {
-  let text = html;
-  // Remove script and style blocks
-  text = text.replace(/<script[\s\S]*?<\/script>/gi, '');
-  text = text.replace(/<style[\s\S]*?<\/style>/gi, '');
-  // Replace block elements with newlines
-  text = text.replace(/<\/?(?:p|div|br|hr|h[1-6]|li|tr|blockquote)[^>]*>/gi, '\n');
-  // Strip remaining tags
-  text = text.replace(/<[^>]+>/g, '');
-  // Decode common HTML entities
-  text = text.replace(/&amp;/g, '&');
-  text = text.replace(/&lt;/g, '<');
-  text = text.replace(/&gt;/g, '>');
-  text = text.replace(/&quot;/g, '"');
-  text = text.replace(/&#39;/g, "'");
-  text = text.replace(/&nbsp;/g, ' ');
-  // Collapse whitespace
-  text = text.replace(/[ \t]+/g, ' ');
-  text = text.replace(/\n\s*\n/g, '\n\n');
-  return text.trim();
-}
-
 // ── Helper: Search the web via DuckDuckGo ──
 
 async function webSearch(query: string, numResults = 10): Promise<Array<{ title: string; url: string; snippet: string }>> {
@@ -167,7 +144,7 @@ async function webSearch(query: string, numResults = 10): Promise<Array<{ title:
   const links: Array<{ href: string; title: string }> = [];
   let linkMatch;
   while ((linkMatch = linkRegex.exec(html)) !== null) {
-    links.push({ href: linkMatch[1], title: stripHtml(linkMatch[2]) });
+    links.push({ href: linkMatch[1], title: stripHtmlToText(linkMatch[2]) });
   }
 
   // Extract snippets
@@ -175,7 +152,7 @@ async function webSearch(query: string, numResults = 10): Promise<Array<{ title:
   const snippets: string[] = [];
   let snippetMatch;
   while ((snippetMatch = snippetRegex.exec(html)) !== null) {
-    snippets.push(stripHtml(snippetMatch[1]));
+    snippets.push(stripHtmlToText(snippetMatch[1]));
   }
 
   for (let i = 0; i < Math.min(links.length, numResults); i++) {
@@ -208,37 +185,11 @@ async function webSearch(query: string, numResults = 10): Promise<Array<{ title:
 // ── Helper: Fetch a URL and return text content ──
 
 async function webFetch(url: string, maxLength = 10000): Promise<string> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-
-  try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'Tasmania-MCP/1.0' },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Fetch failed: ${response.status} ${response.statusText}`);
-    }
-
-    const contentType = response.headers.get('content-type') || '';
-    const raw = await response.text();
-
-    let text: string;
-    if (contentType.includes('html')) {
-      text = stripHtml(raw);
-    } else {
-      text = raw;
-    }
-
-    if (text.length > maxLength) {
-      text = text.slice(0, maxLength) + `\n\n[Truncated — showing ${maxLength} of ${text.length} characters]`;
-    }
-
-    return text;
-  } finally {
-    clearTimeout(timeout);
-  }
+  const target = await assertSafeHttpUrl(url);
+  return fetchTextWithLimits(target, {
+    maxChars: maxLength,
+    userAgent: 'Tasmania-MCP/1.0',
+  });
 }
 
 // ── MCP Server Setup ──
@@ -393,9 +344,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'web_fetch': {
         const { url, max_length } = args as { url: string; max_length?: number };
-        if (!url.startsWith('http://') && !url.startsWith('https://')) {
-          throw new Error('URL must start with http:// or https://');
-        }
         const clamped = Math.max(500, Math.min(50000, max_length ?? 10000));
         const content = await webFetch(url, clamped);
         return { content: [{ type: 'text', text: content }] };

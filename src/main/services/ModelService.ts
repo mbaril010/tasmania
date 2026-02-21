@@ -1,5 +1,6 @@
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import { assertPathInside } from '../security/path-utils';
 import { getModelsDir, getChatModelsDir, getImageModelsDir, getVideoModelsDir } from '../store/AppStore';
 import type { LocalModel, ModelCategory } from '../../shared/types';
 
@@ -101,10 +102,11 @@ export class ModelService {
     const modelsDir = getModelsDir();
 
     // Safety: only delete files within the models directory
-    const resolved = path.resolve(modelPath);
-    if (!resolved.startsWith(path.resolve(modelsDir))) {
-      throw new Error('Cannot delete files outside the models directory');
-    }
+    const resolved = assertPathInside(
+      modelsDir,
+      modelPath,
+      'Cannot delete files outside the models directory',
+    );
 
     await fsp.unlink(resolved);
 

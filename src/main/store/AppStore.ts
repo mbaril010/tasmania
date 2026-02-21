@@ -2,6 +2,7 @@ import Store from 'electron-store';
 import path from 'node:path';
 import os from 'node:os';
 import type { AppSettings } from '../../shared/types';
+import { validateSettingsPartial } from '../security/settings-schema';
 import { LLAMA_CPP_DEFAULT_PORT, DEFAULT_CONTEXT_SIZE, DEFAULT_GPU_LAYERS, SD_DEFAULT_PORT, SD_DEFAULT_STEPS, SD_DEFAULT_CFG_SCALE, SD_DEFAULT_WIDTH, SD_DEFAULT_HEIGHT, COMFYUI_DEFAULT_PORT, COMFYUI_DEFAULT_PYTHON, EXO_DEFAULT_HOST, EXO_DEFAULT_PORT, DEFAULT_IMAGE_OUTPUT_DIR } from '../../shared/constants';
 
 const DEFAULT_MODELS_DIR = path.join(
@@ -55,7 +56,8 @@ export function getSettings(): AppSettings {
 }
 
 export function setSettings(partial: Partial<AppSettings>): void {
-  for (const [key, value] of Object.entries(partial)) {
+  const validated = validateSettingsPartial(partial);
+  for (const [key, value] of Object.entries(validated)) {
     store.set(key, value);
   }
 }

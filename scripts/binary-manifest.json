@@ -1,0 +1,20 @@
+{
+  "llama": {
+    "releaseTag": "",
+    "arm64": {
+      "binarySha256": "f8cd7dd10a43d795c914236a41f9adb6ac5b3b872ba1ad85c126eead4d522f01"
+    },
+    "x86_64": {
+      "binarySha256": ""
+    }
+  },
+  "stableDiffusion": {
+    "releaseTag": "master-504-636d3cb",
+    "arm64": {
+      "binarySha256": "393c1ab7b95d9ce200c40c82afe0206571e3470aa8f7181957289980c58f24fa"
+    },
+    "x86_64": {
+      "binarySha256": ""
+    }
+  }
+}

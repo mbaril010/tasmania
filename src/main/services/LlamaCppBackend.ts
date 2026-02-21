@@ -36,6 +36,17 @@ export class LlamaCppBackend extends BackendService {
     gpuLayers: null,
   };
 
+  constructor() {
+    super();
+    this.processManager.on('exit', () => {
+      if (this.state.status === 'running') {
+        this.state.status = 'error';
+        this.state.error = 'Server process exited unexpectedly';
+        this.state.pid = null;
+      }
+    });
+  }
+
   async detect(): Promise<BackendInfo> {
     const binaryPath = getBinaryPath();
     try {
@@ -105,14 +116,6 @@ export class LlamaCppBackend extends BackendService {
       this.state.status = 'running';
       this.state.pid = this.processManager.pid;
       this.state.startedAt = Date.now();
-
-      this.processManager.on('exit', () => {
-        if (this.state.status === 'running') {
-          this.state.status = 'error';
-          this.state.error = 'Server process exited unexpectedly';
-          this.state.pid = null;
-        }
-      });
     } catch (err) {
       this.state.status = 'error';
       this.state.error = err instanceof Error ? err.message : String(err);

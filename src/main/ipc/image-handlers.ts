@@ -2,17 +2,17 @@ import { ipcMain, BrowserWindow } from 'electron';
 import path from 'node:path';
 import fsPromises from 'node:fs/promises';
 import { IPC } from '../../shared/ipc-channels';
+import { assertPathInside } from '../security/path-utils';
 import { StableDiffusionBackend } from '../services/StableDiffusionBackend';
 import { getSettings, getModelsDir } from '../store/AppStore';
 import type { ImageGenerationRequest, Img2ImgGenerationRequest, ServerOptions } from '../../shared/types';
 
 /** Validate that a model path is within the configured models directory */
 function validateModelPath(modelPath: string): void {
-  const modelsDir = getModelsDir();
-  const resolved = path.resolve(modelPath);
-  if (!resolved.startsWith(path.resolve(modelsDir))) {
-    throw new Error('Model path must be within the models directory');
+  if (typeof modelPath !== 'string' || modelPath.trim().length === 0) {
+    throw new Error('Model path is required');
   }
+  assertPathInside(getModelsDir(), modelPath, 'Model path must be within the models directory');
 }
 
 async function saveImageToDisk(b64: string, outputDir: string, prompt: string, seed: number): Promise<string> {

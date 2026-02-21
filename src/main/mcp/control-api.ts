@@ -6,6 +6,7 @@ import { app } from 'electron';
 import { getActiveBackend, setActiveBackend, getBackends } from '../ipc/backend-handlers';
 import { getExoBackend } from '../ipc/exo-handlers';
 import { getModelService, getHuggingFaceService } from '../ipc/model-handlers';
+import { assertPathInside } from '../security/path-utils';
 import { getSettings, getModelsDir, getChatModelsDir, getImageModelsDir, getVideoModelsDir } from '../store/AppStore';
 import { CONTROL_API_PORT } from '../../shared/constants';
 import { ModelService } from '../services/ModelService';
@@ -125,8 +126,9 @@ export async function startControlApi(): Promise<void> {
 
         // Validate model path is within models directory
         const modelsDir = getModelsDir();
-        const resolvedModelPath = path.resolve(modelPath);
-        if (!resolvedModelPath.startsWith(path.resolve(modelsDir))) {
+        try {
+          assertPathInside(modelsDir, modelPath, 'Model path must be within the models directory');
+        } catch {
           res.writeHead(400);
           res.end(JSON.stringify({ error: 'Model path must be within the models directory' }));
           return;

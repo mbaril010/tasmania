@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
+import { decideResumeBehavior } from '../security/download-utils';
+import { assertPathInside } from '../security/path-utils';
 import { HF_API_BASE, HF_DOWNLOAD_BASE } from '../../shared/constants';
 import type { HuggingFaceModel, HuggingFaceFile, DownloadProgress } from '../../shared/types';
 
@@ -103,9 +105,7 @@ export class HuggingFaceService extends EventEmitter {
     const destPath = path.join(repoDir, filename);
 
     // Final safety check: resolved path must stay within destDir
-    if (!path.resolve(destPath).startsWith(path.resolve(destDir))) {
-      throw new Error('Invalid download path');
-    }
+    assertPathInside(destDir, destPath, 'Invalid download path');
 
     await fsp.mkdir(path.dirname(destPath), { recursive: true });
 
@@ -147,6 +147,14 @@ export class HuggingFaceService extends EventEmitter {
         throw new Error(`Download failed: ${response.status} ${response.statusText}`);
       }
 
+      const resume = decideResumeBehavior(startByte, response.status);
+      if (resume.restartedFromZero) {
+        // Server ignored Range and returned a full body. Restart from zero so
+        // we don't append duplicate bytes and corrupt the model file.
+        progress.downloadedBytes = 0;
+      }
+      startByte = resume.startByte;
+
       const contentLength = response.headers.get('content-length');
       const totalSize = contentLength ? parseInt(contentLength, 10) + startByte : 0;
       progress.totalBytes = totalSize;
@@ -155,7 +163,7 @@ export class HuggingFaceService extends EventEmitter {
       if (!body) throw new Error('No response body');
 
       const fileStream = fs.createWriteStream(destPath + '.partial', {
-        flags: startByte > 0 ? 'a' : 'w',
+        flags: resume.writeFlag,
       });
 
       const reader = body.getReader();

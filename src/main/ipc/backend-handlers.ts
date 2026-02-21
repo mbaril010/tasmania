@@ -2,8 +2,8 @@ import { ipcMain, BrowserWindow } from 'electron';
 import { execSync } from 'node:child_process';
 import os from 'node:os';
 import fs from 'node:fs/promises';
-import path from 'node:path';
 import { IPC } from '../../shared/ipc-channels';
+import { assertPathInside } from '../security/path-utils';
 import { BackendService } from '../services/BackendService';
 import { LlamaCppBackend } from '../services/LlamaCppBackend';
 import { getSettings, getModelsDir } from '../store/AppStore';
@@ -13,11 +13,10 @@ import type { BackendInfo, BackendType, MemoryPreflightResult, ServerOptions } f
 
 /** Validate that a model path is within the configured models directory */
 function validateModelPath(modelPath: string): void {
-  const modelsDir = getModelsDir();
-  const resolved = path.resolve(modelPath);
-  if (!resolved.startsWith(path.resolve(modelsDir))) {
-    throw new Error('Model path must be within the models directory');
+  if (typeof modelPath !== 'string' || modelPath.trim().length === 0) {
+    throw new Error('Model path is required');
   }
+  assertPathInside(getModelsDir(), modelPath, 'Model path must be within the models directory');
 }
 
 /**

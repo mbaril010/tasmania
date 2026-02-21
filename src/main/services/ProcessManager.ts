@@ -71,8 +71,31 @@ export class ProcessManager extends EventEmitter {
         startedAt: Date.now(),
       };
 
+      let settled = false;
+      const settleResolve = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      const settleReject = (err: Error) => {
+        if (settled) return;
+        settled = true;
+        reject(err);
+      };
+
       const timeout = setTimeout(() => {
-        reject(new Error(`Server did not become ready within ${timeoutMs}ms`));
+        if (!resolved) {
+          const recentLogs = this.logs.slice(-5).join('\n');
+          settleReject(new Error(`Server did not become ready within ${timeoutMs}ms\n${recentLogs}`));
+          if (!proc.killed) {
+            proc.kill('SIGTERM');
+            setTimeout(() => {
+              if (!proc.killed) {
+                proc.kill('SIGKILL');
+              }
+            }, 2_000);
+          }
+        }
       }, timeoutMs);
 
       let resolved = false;
@@ -84,7 +107,7 @@ export class ProcessManager extends EventEmitter {
         if (!resolved && readyPattern.test(line)) {
           resolved = true;
           clearTimeout(timeout);
-          resolve();
+          settleResolve();
         }
       };
 
@@ -102,7 +125,7 @@ export class ProcessManager extends EventEmitter {
         clearTimeout(timeout);
         this.cleanup();
         if (!resolved) {
-          reject(new Error(`Failed to start process: ${err.message}`));
+          settleReject(new Error(`Failed to start process: ${err.message}`));
         }
         this.emit('error', err);
       });
@@ -112,10 +135,10 @@ export class ProcessManager extends EventEmitter {
       // inspect them for error matching in callers like StableDiffusionBackend.
       proc.on('close', (code, signal) => {
         clearTimeout(timeout);
+        const recentLogs = this.logs.slice(-5).join('\n');
         this.cleanup();
         if (!resolved) {
-          const recentLogs = this.logs.slice(-5).join('\n');
-          reject(new Error(`Process exited early with code ${code}, signal ${signal}\n${recentLogs}`));
+          settleReject(new Error(`Process exited early with code ${code}, signal ${signal}\n${recentLogs}`));
         }
         this.emit('exit', code, signal);
       });
@@ -130,21 +153,34 @@ export class ProcessManager extends EventEmitter {
     }
 
     return new Promise<void>((resolve) => {
-      const forceKill = setTimeout(() => {
-        if (this.process && !this.process.killed) {
-          this.process.kill('SIGKILL');
-        }
+      const proc = this.process;
+      if (!proc) {
         this.cleanup();
         resolve();
+        return;
+      }
+
+      let settled = false;
+      const settle = () => {
+        if (settled) return;
+        settled = true;
+        this.cleanup();
+        resolve();
+      };
+
+      const forceKill = setTimeout(() => {
+        if (proc && !proc.killed) {
+          proc.kill('SIGKILL');
+        }
+        settle();
       }, 5_000);
 
-      this.process!.on('exit', () => {
+      proc.once('exit', () => {
         clearTimeout(forceKill);
-        this.cleanup();
-        resolve();
+        settle();
       });
 
-      this.process!.kill('SIGTERM');
+      proc.kill('SIGTERM');
     });
   }
 
@@ -162,6 +198,5 @@ export class ProcessManager extends EventEmitter {
   private cleanup() {
     this.process = null;
     this.info = null;
-    this.logs = [];
   }
 }

@@ -3,6 +3,8 @@ import { execSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { IPC } from '../../shared/ipc-channels';
+import { assertPathInsideAny } from '../security/path-utils';
+import { validateSettingsPartial } from '../security/settings-schema';
 import { getSettings, setSettings, getModelsDir } from '../store/AppStore';
 import type { AppSettings } from '../../shared/types';
 
@@ -39,8 +41,11 @@ export function registerSystemHandlers() {
   });
 
   ipcMain.handle(IPC.SYSTEM_OPEN_PATH, async (_event, filePath: string) => {
+    if (typeof filePath !== 'string' || filePath.trim().length === 0) {
+      throw new Error('Path is required');
+    }
+
     // Only allow opening paths within known safe directories
-    const resolved = path.resolve(filePath);
     const settings = getSettings();
     const allowedDirs = [
       path.resolve(getModelsDir()),
@@ -48,10 +53,11 @@ export function registerSystemHandlers() {
       path.resolve(app.getPath('userData')),
       path.resolve(settings.imageOutput.outputDir),
     ];
-    const isAllowed = allowedDirs.some((dir) => resolved.startsWith(dir));
-    if (!isAllowed) {
-      throw new Error('Opening this path is not allowed');
-    }
+    const resolved = assertPathInsideAny(
+      allowedDirs,
+      filePath,
+      'Opening this path is not allowed',
+    );
     await shell.openPath(resolved);
   });
 
@@ -82,29 +88,7 @@ export function registerSystemHandlers() {
   });
 
   ipcMain.handle(IPC.SETTINGS_SET, (_event, partial: Partial<AppSettings>) => {
-    // Validate port numbers
-    if (partial.llamaCpp?.port != null) {
-      if (!Number.isInteger(partial.llamaCpp.port) || partial.llamaCpp.port < 1024 || partial.llamaCpp.port > 65535) {
-        throw new Error('llama.cpp port must be 1024-65535');
-      }
-    }
-    if (partial.stableDiffusion?.port != null) {
-      if (!Number.isInteger(partial.stableDiffusion.port) || partial.stableDiffusion.port < 1024 || partial.stableDiffusion.port > 65535) {
-        throw new Error('Stable Diffusion port must be 1024-65535');
-      }
-    }
-    // Validate context size
-    if (partial.llamaCpp?.contextSize != null) {
-      if (!Number.isInteger(partial.llamaCpp.contextSize) || partial.llamaCpp.contextSize < 128 || partial.llamaCpp.contextSize > 1_048_576) {
-        throw new Error('Context size must be 128-1048576');
-      }
-    }
-    // Validate GPU layers
-    if (partial.llamaCpp?.gpuLayers != null) {
-      if (!Number.isInteger(partial.llamaCpp.gpuLayers) || partial.llamaCpp.gpuLayers < 0 || partial.llamaCpp.gpuLayers > 999) {
-        throw new Error('GPU layers must be 0-999');
-      }
-    }
-    setSettings(partial);
+    const validated = validateSettingsPartial(partial);
+    setSettings(validated);
   });
 }

@@ -31,6 +31,18 @@ export class ComfyUIBackend extends BackendService {
     gpuLayers: null,
   };
 
+  constructor() {
+    super();
+    this.processManager.on('exit', () => {
+      if (this.state.status === 'running') {
+        this.state.status = 'error';
+        this.state.error = 'ComfyUI process exited unexpectedly';
+        this.state.pid = null;
+      }
+      this.disconnectWebSocket();
+    });
+  }
+
   configure(comfyuiPath: string, port: number, pythonPath: string) {
     this.comfyuiPath = comfyuiPath;
     this.state.port = port || COMFYUI_DEFAULT_PORT;
@@ -94,15 +106,6 @@ export class ComfyUIBackend extends BackendService {
       this.state.status = 'running';
       this.state.pid = this.processManager.pid;
       this.state.startedAt = Date.now();
-
-      this.processManager.on('exit', () => {
-        if (this.state.status === 'running') {
-          this.state.status = 'error';
-          this.state.error = 'ComfyUI process exited unexpectedly';
-          this.state.pid = null;
-        }
-        this.disconnectWebSocket();
-      });
 
       // Connect WebSocket for progress events
       this.connectWebSocket(port);
