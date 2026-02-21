@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import Button from '../Common/Button';
+import InfoTip from '../Common/InfoTip';
 import StatusIndicator from '../Common/StatusIndicator';
 import type { ImageGenerationResult, ModelResolution } from '../../../shared/types';
 
@@ -289,7 +290,7 @@ const ImagePanel: React.FC = () => {
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
           <div>
-            <label style={labelStyle}>Steps:</label>
+            <label style={labelStyle}>Steps:<InfoTip text="Number of refinement passes. Use 4–8 for turbo/distilled models, 15–25 for standard models. More steps = more refined but slower." /></label>
             <input
               type="number"
               value={steps}
@@ -298,7 +299,7 @@ const ImagePanel: React.FC = () => {
             />
           </div>
           <div>
-            <label style={labelStyle}>CFG Scale:</label>
+            <label style={labelStyle}>CFG Scale:<InfoTip text="How strictly the AI follows your prompt. Low (1–3): creative/loose. Medium (3–5): balanced. High (7+): strict but can oversaturate." /></label>
             <input
               type="number"
               step="0.5"

@@ -293,6 +293,15 @@ const api = {
     },
   },
 
+  // ── Web ──
+  web: {
+    search: (query: string, numResults?: number): Promise<Array<{ title: string; url: string; snippet: string }>> =>
+      ipcRenderer.invoke(IPC.WEB_SEARCH, query, numResults),
+
+    fetch: (url: string, maxLength?: number): Promise<string> =>
+      ipcRenderer.invoke(IPC.WEB_FETCH, url, maxLength),
+  },
+
   // ── Utility ──
   ping: (): Promise<string> => ipcRenderer.invoke('ping'),
 };

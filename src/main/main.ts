@@ -8,6 +8,7 @@ import { registerTerminalHandlers, shutdownTerminal } from './ipc/terminal-handl
 import { registerImageHandlers, shutdownImageServer } from './ipc/image-handlers';
 import { registerVideoHandlers, shutdownVideoServer } from './ipc/video-handlers';
 import { registerExoHandlers, shutdownExo } from './ipc/exo-handlers';
+import { registerWebHandlers } from './ipc/web-handlers';
 import { startControlApi, stopControlApi } from './mcp/control-api';
 import { getSettings } from './store/AppStore';
 
@@ -59,6 +60,7 @@ registerTerminalHandlers();
 registerImageHandlers();
 registerVideoHandlers();
 registerExoHandlers();
+registerWebHandlers();
 
 app.whenReady().then(async () => {
   // Migrate models from flat directory to category subdirectories

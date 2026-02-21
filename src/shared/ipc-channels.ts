@@ -95,6 +95,10 @@ export const IPC = {
   EXO_CLUSTER_CHANGED: 'exo:cluster-changed',
   EXO_DOWNLOAD_PROGRESS: 'exo:download-progress',
 
+  // Web operations
+  WEB_SEARCH: 'web:search',
+  WEB_FETCH: 'web:fetch',
+
   // Terminal operations
   TERMINAL_CREATE: 'terminal:create',
   TERMINAL_WRITE: 'terminal:write',

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import Button from '../Common/Button';
+import InfoTip from '../Common/InfoTip';
 import StatusIndicator from '../Common/StatusIndicator';
 import type { ImageGenerationResult, ModelResolution } from '../../../shared/types';
 
@@ -20,6 +21,7 @@ const Img2ImgPanel: React.FC = () => {
   // Source images (multiple)
   const [initImages, setInitImages] = useState<string[]>([]);
   const [initImagePreviews, setInitImagePreviews] = useState<string[]>([]);
+  const [initImageNames, setInitImageNames] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -66,6 +68,7 @@ const Img2ImgPanel: React.FC = () => {
         const base64 = dataUrl.replace(/^data:image\/[^;]+;base64,/, '');
         setInitImagePreviews((prev) => [...prev, dataUrl]);
         setInitImages((prev) => [...prev, base64]);
+        setInitImageNames((prev) => [...prev, file.name]);
       };
       reader.readAsDataURL(file);
     });
@@ -85,6 +88,7 @@ const Img2ImgPanel: React.FC = () => {
   const handleRemoveImage = (index: number) => {
     setInitImages((prev) => prev.filter((_, i) => i !== index));
     setInitImagePreviews((prev) => prev.filter((_, i) => i !== index));
+    setInitImageNames((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleStart = async () => {
@@ -244,7 +248,7 @@ const Img2ImgPanel: React.FC = () => {
         {initImagePreviews.length > 0 && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
             {initImagePreviews.map((preview, i) => (
-              <div key={i} style={{ position: 'relative', display: 'inline-block' }}>
+              <div key={i} style={{ position: 'relative', display: 'inline-block', width: 96 }}>
                 <img
                   src={preview}
                   alt={`Source ${i + 1}`}
@@ -262,6 +266,17 @@ const Img2ImgPanel: React.FC = () => {
                 >
                   x
                 </button>
+                {initImageNames[i] && (
+                  <div
+                    title={initImageNames[i]}
+                    style={{
+                      fontSize: '0.65rem', color: '#777', marginTop: 3,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {initImageNames[i]}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -322,6 +337,7 @@ const Img2ImgPanel: React.FC = () => {
         <div style={{ marginBottom: 12 }}>
           <label style={labelStyle}>
             Denoising Strength: {denoisingStrength.toFixed(2)}
+            <InfoTip text="Controls how much the AI changes your source image. Low (0.2–0.4): subtle tweaks, keeps source recognizable. Medium (0.4–0.6): reshapes details, keeps composition. High (0.7+): almost full regeneration, source barely visible." />
           </label>
           <input
             type="range"
@@ -340,11 +356,11 @@ const Img2ImgPanel: React.FC = () => {
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
           <div>
-            <label style={labelStyle}>Steps:</label>
+            <label style={labelStyle}>Steps:<InfoTip text="Number of refinement passes. Use 4–8 for turbo/distilled models, 15–25 for standard models. More steps = more refined but slower." /></label>
             <input type="number" value={steps} onChange={(e) => setSteps(parseInt(e.target.value) || 20)} style={{ ...inputStyle, width: 80 }} />
           </div>
           <div>
-            <label style={labelStyle}>CFG Scale:</label>
+            <label style={labelStyle}>CFG Scale:<InfoTip text="How strictly the AI follows your prompt. Low (1–3): creative/loose. Medium (3–5): balanced. High (7+): strict but can oversaturate." /></label>
             <input type="number" step="0.5" value={cfgScale} onChange={(e) => setCfgScale(parseFloat(e.target.value) || 7.0)} style={{ ...inputStyle, width: 80 }} />
           </div>
           <div>

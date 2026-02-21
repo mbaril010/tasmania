@@ -27,7 +27,7 @@ const MessageBubble: React.FC<{ message: ChatMessage }> = ({ message }) => {
   );
 };
 
-const ThinkingIndicator: React.FC = () => (
+const ThinkingIndicator: React.FC<{ label?: string }> = ({ label = 'Thinking...' }) => (
   <div
     style={{
       alignSelf: 'flex-start',
@@ -38,7 +38,7 @@ const ThinkingIndicator: React.FC = () => (
       fontSize: '0.85rem',
     }}
   >
-    Thinking...
+    {label}
   </div>
 );
 
@@ -56,6 +56,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
   const { activeSession, addMessage } = useChatSessions();
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingLabel, setLoadingLabel] = useState('Thinking...');
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -85,7 +86,27 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
 
     // Build the request messages, prepending system prompt
     const requestMessages: Array<{ role: string; content: string }> = [];
-    const systemPrompt = SYSTEM_PROMPTS[mode];
+    let systemPrompt = SYSTEM_PROMPTS[mode] || '';
+
+    // Web search: fetch results and inject into system prompt
+    {
+      try {
+        setLoadingLabel('Searching the web...');
+        const results = await window.tasmania.web.search(trimmed, 5);
+        if (results.length > 0) {
+          const formatted = results
+            .map((r, i) => `${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.snippet}`)
+            .join('\n\n');
+          systemPrompt += `\n\nYou have access to current web information. Here are relevant search results you found:\n\n${formatted}\n\nUse these results to answer the user's question. Present the information naturally as facts you know, and mention source URLs where helpful.`;
+        }
+      } catch (searchErr) {
+        console.warn('Web search failed:', searchErr);
+        // Continue without search results — don't block the user
+      }
+      setLoadingLabel('Thinking...');
+    }
+
+
     if (systemPrompt) {
       requestMessages.push({ role: 'system', content: systemPrompt });
     }
@@ -171,7 +192,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ mode = 'chat' }) => {
         {messages.map((msg) => (
           <MessageBubble key={msg.id} message={msg} />
         ))}
-        {isLoading && <ThinkingIndicator />}
+        {isLoading && <ThinkingIndicator label={loadingLabel} />}
         <div ref={messagesEndRef} />
       </div>
 
