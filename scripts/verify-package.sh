@@ -42,6 +42,50 @@ if [[ ! -d "$APP_BUNDLE" ]]; then
 fi
 pass "App bundle exists at ${APP_BUNDLE}"
 
+# ─── Security checks ────────────────────────────────────────────────
+info ""
+info "Running security checks..."
+
+if npm run -s lint >/dev/null; then
+  pass "Typecheck passed"
+else
+  fail "Typecheck failed"
+fi
+
+if npm run -s test:security >/dev/null; then
+  pass "Security tests passed"
+else
+  fail "Security tests failed"
+fi
+
+# ─── Entitlements checks ────────────────────────────────────────────
+info ""
+info "Checking entitlements..."
+
+if grep -q "allow-unsigned-executable-memory" "entitlements/entitlements.mac.plist"; then
+  fail "entitlements.mac.plist includes allow-unsigned-executable-memory"
+else
+  pass "entitlements.mac.plist excludes allow-unsigned-executable-memory"
+fi
+
+if grep -q "allow-unsigned-executable-memory" "entitlements/entitlements.mac.inherit.plist"; then
+  fail "entitlements.mac.inherit.plist includes allow-unsigned-executable-memory"
+else
+  pass "entitlements.mac.inherit.plist excludes allow-unsigned-executable-memory"
+fi
+
+if grep -q "disable-library-validation" "entitlements/entitlements.mac.plist"; then
+  fail "entitlements.mac.plist includes disable-library-validation"
+else
+  pass "entitlements.mac.plist excludes disable-library-validation"
+fi
+
+if grep -q "disable-library-validation" "entitlements/entitlements.mac.inherit.plist"; then
+  fail "entitlements.mac.inherit.plist includes disable-library-validation"
+else
+  pass "entitlements.mac.inherit.plist excludes disable-library-validation"
+fi
+
 # ─── Check main executable ──────────────────────────────────────────
 MAIN_EXEC="${APP_BUNDLE}/Contents/MacOS/${APP_NAME}"
 if [[ -x "$MAIN_EXEC" ]]; then

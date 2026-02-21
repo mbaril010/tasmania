@@ -1,0 +1,43 @@
+name: Security Audit
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 14 * * 1'
+
+jobs:
+  app-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install app deps
+        run: npm ci --ignore-scripts
+      - name: Typecheck
+        run: npm run lint
+      - name: Security tests
+        run: npm run test:security
+      - name: Dependency audit
+        run: npm audit --audit-level=moderate
+
+  landing-audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: landing
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: landing/package-lock.json
+      - name: Install landing deps
+        run: npm ci --ignore-scripts
+      - name: Dependency audit
+        run: npm audit --audit-level=moderate
