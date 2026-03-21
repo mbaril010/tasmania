@@ -4,6 +4,8 @@ import type {
   AppSettings,
   BackendInfo,
   BackendType,
+  ComfyUIInstallInfo,
+  ComfyUIInstallProgress,
   DownloadProgress,
   ExoClusterState,
   ExoModel,
@@ -116,6 +118,9 @@ const api = {
   selectDirectory: (): Promise<string | null> =>
     ipcRenderer.invoke(IPC.SYSTEM_SELECT_DIR),
 
+  getVideoModelsDir: (): Promise<string> =>
+    ipcRenderer.invoke(IPC.SYSTEM_VIDEO_MODELS_DIR),
+
   // ── Terminal ──
   terminal: {
     create: (sessionId: string, cols: number, rows: number, customEnv?: Record<string, string>): Promise<void> =>
@@ -205,6 +210,9 @@ const api = {
     cancel: (): Promise<void> =>
       ipcRenderer.invoke(IPC.VIDEO_CANCEL),
 
+    getOutputDir: (): Promise<string> =>
+      ipcRenderer.invoke(IPC.VIDEO_GET_OUTPUT_DIR),
+
     onStatusChanged: (callback: (state: ServerState) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, state: ServerState) => callback(state);
       ipcRenderer.on(IPC.VIDEO_STATUS_CHANGED, handler);
@@ -290,6 +298,30 @@ const api = {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on(IPC.EXO_DOWNLOAD_PROGRESS, handler);
       return () => ipcRenderer.removeListener(IPC.EXO_DOWNLOAD_PROGRESS, handler);
+    },
+  },
+
+  // ── ComfyUI Install ──
+  comfyui: {
+    getInstallStatus: (): Promise<ComfyUIInstallInfo> =>
+      ipcRenderer.invoke(IPC.COMFYUI_INSTALL_STATUS),
+
+    checkPython: (): Promise<{ available: boolean; path: string; version: string }> =>
+      ipcRenderer.invoke(IPC.COMFYUI_CHECK_PYTHON),
+
+    install: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.COMFYUI_INSTALL_START),
+
+    cancelInstall: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.COMFYUI_INSTALL_CANCEL),
+
+    uninstall: (): Promise<void> =>
+      ipcRenderer.invoke(IPC.COMFYUI_UNINSTALL),
+
+    onInstallProgress: (callback: (progress: ComfyUIInstallProgress) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, progress: ComfyUIInstallProgress) => callback(progress);
+      ipcRenderer.on(IPC.COMFYUI_INSTALL_PROGRESS, handler);
+      return () => ipcRenderer.removeListener(IPC.COMFYUI_INSTALL_PROGRESS, handler);
     },
   },
 

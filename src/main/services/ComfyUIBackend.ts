@@ -3,7 +3,7 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { BackendService } from './BackendService';
 import { ProcessManager } from './ProcessManager';
-import { COMFYUI_DEFAULT_PORT } from '../../shared/constants';
+import { COMFYUI_DEFAULT_PORT, VIDEO_MODELS_DIR } from '../../shared/constants';
 import type {
   BackendInfo,
   ServerOptions,
@@ -93,11 +93,16 @@ export class ComfyUIBackend extends BackendService {
       gpuLayers: null,
     };
 
+    // Ensure Tasmania video model directories exist and write extra_model_paths.yaml
+    const extraConfigPath = await this.writeExtraModelPaths();
+
     try {
       await this.processManager.start(this.pythonPath, [
         mainPy,
         '--listen', '127.0.0.1',
         '--port', String(port),
+        '--extra-model-paths-config', extraConfigPath,
+        '--force-fp16',
       ], {
         readyPattern: /To see the GUI go to/i,
         timeoutMs: 120_000,
@@ -214,26 +219,53 @@ export class ComfyUIBackend extends BackendService {
   }
 
   /** Wait for a prompt to complete by polling history */
-  async waitForCompletion(promptId: string, timeoutMs = 600_000): Promise<Record<string, unknown>> {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
+  async waitForCompletion(promptId: string): Promise<Record<string, unknown>> {
+    for (;;) {
       const history = await this.getHistory(promptId);
       if (history) {
         const status = history.status as { status_str?: string } | undefined;
         if (status?.status_str === 'success') return history;
         if (status?.status_str === 'error') {
-          throw new Error('ComfyUI generation failed');
+          const messages = (status as Record<string, unknown>).messages;
+          const detail = messages ? JSON.stringify(messages) : JSON.stringify(history);
+          throw new Error(`ComfyUI generation failed: ${detail}`);
         }
       }
       await new Promise((r) => setTimeout(r, 1000));
     }
-    throw new Error('ComfyUI generation timed out');
   }
 
   /** Interrupt the current generation */
   async interrupt(): Promise<void> {
     const baseUrl = this.getApiEndpoint();
     await fetch(`${baseUrl}/interrupt`, { method: 'POST' });
+  }
+
+  /**
+   * Create Tasmania video model subdirectories and write an extra_model_paths.yaml
+   * so ComfyUI can find models stored in Tasmania's data folder.
+   */
+  private async writeExtraModelPaths(): Promise<string> {
+    const subdirs = ['diffusion_models', 'vae', 'clip', 'text_encoders', 'checkpoints', 'unet', 'loras', 'latent_upscale_models'];
+    await Promise.all(subdirs.map((d) => fs.mkdir(path.join(VIDEO_MODELS_DIR, d), { recursive: true })));
+
+    const yaml = [
+      'tasmania:',
+      `    base_path: ${VIDEO_MODELS_DIR}`,
+      '    diffusion_models: diffusion_models/',
+      '    unet: unet/',
+      '    vae: vae/',
+      '    clip: clip/',
+      '    text_encoders: text_encoders/',
+      '    checkpoints: checkpoints/',
+      '    loras: loras/',
+      '    latent_upscale_models: latent_upscale_models/',
+      '',
+    ].join('\n');
+
+    const configPath = path.join(VIDEO_MODELS_DIR, 'extra_model_paths.yaml');
+    await fs.writeFile(configPath, yaml, 'utf-8');
+    return configPath;
   }
 
   private connectWebSocket(port: number) {

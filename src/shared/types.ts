@@ -140,6 +140,39 @@ export interface ImageGenerationResult {
   savedPath?: string;
 }
 
+// ── Video Model Types ──
+
+export type VideoModelCapability = 'txt2vid' | 'img2vid';
+
+export interface VideoUpscaleDefaults {
+  refineSteps: number;
+  refineDenoise: number;
+}
+
+export interface VideoModelDef {
+  id: string;
+  name: string;
+  capabilities: VideoModelCapability[];
+  defaults: {
+    width: number;
+    height: number;
+    frameCount: number;
+    fps: number;
+    steps: number;
+    cfgScale: number;
+  };
+  requiredCustomNodes?: string[];
+  upscaleDefaults?: VideoUpscaleDefaults;
+}
+
+// ── Video Upscale Types ──
+
+export interface VideoUpscaleConfig {
+  enabled: boolean;
+  refineSteps: number;    // 3-8
+  refineDenoise: number;  // 0.2-0.6
+}
+
 // ── Video Generation Types ──
 
 export interface VideoGenerationRequest {
@@ -152,6 +185,8 @@ export interface VideoGenerationRequest {
   steps: number;
   cfgScale: number;
   seed?: number;
+  videoModel?: string;
+  upscale?: VideoUpscaleConfig;
 }
 
 export interface Img2VidGenerationRequest extends VideoGenerationRequest {
@@ -165,6 +200,9 @@ export interface VideoGenerationResult {
   fps: number;
   durationSeconds: number;
   timingMs: number;
+  upscaled?: boolean;
+  outputWidth?: number;
+  outputHeight?: number;
 }
 
 // ── Exo Cluster Types ──
@@ -189,6 +227,29 @@ export interface ExoModel {
   owned_by: string;
 }
 
+// ── ComfyUI Install Types ──
+
+export type ComfyUIInstallStatus = 'not-installed' | 'checking' | 'installing' | 'installed' | 'error';
+export type ComfyUIInstallStep = 'checking-python' | 'downloading-comfyui' | 'extracting' | 'creating-venv' | 'installing-pytorch' | 'installing-requirements' | 'installing-custom-nodes' | 'verifying' | 'done';
+
+export interface ComfyUIInstallProgress {
+  status: ComfyUIInstallStatus;
+  step: ComfyUIInstallStep | null;
+  stepIndex: number;
+  totalSteps: number;
+  stepProgress: number; // 0-100
+  message: string;
+  error: string | null;
+}
+
+export interface ComfyUIInstallInfo {
+  installed: boolean;
+  installPath: string | null;
+  pythonPath: string | null;
+  version: string | null;
+  mode: 'managed' | 'external';
+}
+
 // ── Settings Types ──
 
 export interface AppSettings {
@@ -208,6 +269,7 @@ export interface AppSettings {
     defaultHeight: number;
   };
   comfyui: {
+    mode: 'managed' | 'external';
     path: string;
     port: number;
     pythonPath: string;

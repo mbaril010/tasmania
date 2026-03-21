@@ -38,5 +38,49 @@ export const EXO_DEFAULT_PORT = 52415;
 
 export const DEFAULT_IMAGE_OUTPUT_DIR = path.join(os.homedir(), 'Pictures', APP_NAME);
 
+// Video model storage — ComfyUI model subdirectories hosted by Tasmania
+export const VIDEO_MODELS_DIR = path.join(
+  os.homedir(),
+  'Library',
+  'Application Support',
+  APP_NAME,
+  'models',
+  'video'
+);
+
+// ComfyUI managed install
+export const COMFYUI_INSTALL_DIR = path.join(
+  os.homedir(),
+  'Library',
+  'Application Support',
+  APP_NAME,
+  'comfyui'
+);
+
+export const COMFYUI_GITHUB_TARBALL = 'https://github.com/comfyanonymous/ComfyUI/archive/refs/heads/master.tar.gz';
+
+export const COMFYUI_CUSTOM_NODES: Array<{ name: string; tarball: string; hasRequirements: boolean }> = [
+  {
+    name: 'ComfyUI-AnimateDiff-Evolved',
+    tarball: 'https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved/archive/refs/heads/main.tar.gz',
+    hasRequirements: true,
+  },
+  {
+    name: 'ComfyUI-VideoHelperSuite',
+    tarball: 'https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite/archive/refs/heads/main.tar.gz',
+    hasRequirements: true,
+  },
+  {
+    name: 'ComfyUI-GGUF',
+    tarball: 'https://github.com/city96/ComfyUI-GGUF/archive/refs/heads/main.tar.gz',
+    hasRequirements: true,
+  },
+  {
+    name: 'ComfyUI-LTXVideo',
+    tarball: 'https://github.com/Lightricks/ComfyUI-LTXVideo/archive/refs/heads/master.tar.gz',
+    hasRequirements: true,
+  },
+];
+
 export const HF_API_BASE = 'https://huggingface.co/api';
 export const HF_DOWNLOAD_BASE = 'https://huggingface.co';

@@ -35,6 +35,7 @@ export const IPC = {
   SYSTEM_OPEN_PATH: 'system:open-path',
   SYSTEM_OPEN_EXTERNAL: 'system:open-external',
   SYSTEM_SELECT_DIR: 'system:select-dir',
+  SYSTEM_VIDEO_MODELS_DIR: 'system:video-models-dir',
 
   // Update operations
   UPDATE_CHECK: 'update:check',
@@ -67,6 +68,7 @@ export const IPC = {
   VIDEO_GENERATE_TXT2VID: 'video:generate-txt2vid',
   VIDEO_GENERATE_IMG2VID: 'video:generate-img2vid',
   VIDEO_CANCEL: 'video:cancel',
+  VIDEO_GET_OUTPUT_DIR: 'video:get-output-dir',
 
   // Video events (main → renderer)
   VIDEO_STATUS_CHANGED: 'video:status-changed',
@@ -94,6 +96,16 @@ export const IPC = {
   EXO_LOG_LINE: 'exo:log-line',
   EXO_CLUSTER_CHANGED: 'exo:cluster-changed',
   EXO_DOWNLOAD_PROGRESS: 'exo:download-progress',
+
+  // ComfyUI install operations
+  COMFYUI_INSTALL_STATUS: 'comfyui:install-status',
+  COMFYUI_INSTALL_START: 'comfyui:install-start',
+  COMFYUI_INSTALL_CANCEL: 'comfyui:install-cancel',
+  COMFYUI_UNINSTALL: 'comfyui:uninstall',
+  COMFYUI_CHECK_PYTHON: 'comfyui:check-python',
+
+  // ComfyUI install events (main → renderer)
+  COMFYUI_INSTALL_PROGRESS: 'comfyui:install-progress',
 
   // Web operations
   WEB_SEARCH: 'web:search',

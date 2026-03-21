@@ -3,6 +3,8 @@ import type {
   AppSettings,
   BackendInfo,
   BackendType,
+  ComfyUIInstallInfo,
+  ComfyUIInstallProgress,
   DownloadProgress,
   ExoClusterState,
   LocalModel,
@@ -51,6 +53,11 @@ interface AppContextValue {
   // Update
   updateInfo: UpdateInfo | null;
   checkForUpdates: () => Promise<UpdateCheckResult>;
+
+  // ComfyUI Install
+  comfyuiInstallInfo: ComfyUIInstallInfo | null;
+  comfyuiInstallProgress: ComfyUIInstallProgress | null;
+  refreshComfyUIInstallInfo: () => Promise<void>;
 }
 
 const defaultServerState: ServerState = {
@@ -90,6 +97,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [settings, setSettingsState] = useState<AppSettings | null>(null);
   const [systemInfo, setSystemInfo] = useState<{ platform: string; arch: string; memory: number; freeMemory: number } | null>(null);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [comfyuiInstallInfo, setComfyuiInstallInfo] = useState<ComfyUIInstallInfo | null>(null);
+  const [comfyuiInstallProgress, setComfyuiInstallProgress] = useState<ComfyUIInstallProgress | null>(null);
 
   // Track cleanup functions
   const cleanupRef = useRef<Array<() => void>>([]);
@@ -112,6 +121,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     api.exo.getStatus().then(setExoServerState);
     api.exo.getLogs().then(setExoServerLogs);
     api.exo.getClusterState().then(setExoClusterState);
+    api.comfyui.getInstallStatus().then(setComfyuiInstallInfo);
 
     // Subscribe to events
     const unsub1 = api.onServerStatusChanged((state) => {
@@ -171,7 +181,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setExoClusterState(state);
     });
 
-    cleanupRef.current = [unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7, unsub8, unsub9, unsub10, unsub11];
+    const unsub12 = api.comfyui.onInstallProgress((progress) => {
+      setComfyuiInstallProgress(progress);
+      if (progress.status === 'installed' || progress.status === 'error') {
+        api.comfyui.getInstallStatus().then(setComfyuiInstallInfo);
+      }
+    });
+
+    cleanupRef.current = [unsub1, unsub2, unsub3, unsub4, unsub5, unsub6, unsub7, unsub8, unsub9, unsub10, unsub11, unsub12];
 
     return () => {
       cleanupRef.current.forEach((fn) => fn());
@@ -236,6 +253,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setExoClusterState(null);
   }, []);
 
+  const refreshComfyUIInstallInfo = useCallback(async () => {
+    const info = await window.tasmania.comfyui.getInstallStatus();
+    setComfyuiInstallInfo(info);
+  }, []);
+
   const checkForUpdates = useCallback(async () => {
     const result = await window.tasmania.checkForUpdates();
     if (result.updateInfo) {
@@ -271,6 +293,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         systemInfo,
         updateInfo,
         checkForUpdates,
+        comfyuiInstallInfo,
+        comfyuiInstallProgress,
+        refreshComfyUIInstallInfo,
       }}
     >
       {children}

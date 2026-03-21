@@ -30,6 +30,7 @@ const defaults: AppSettings = {
     defaultHeight: SD_DEFAULT_HEIGHT,
   },
   comfyui: {
+    mode: 'managed' as const,
     path: '',
     port: COMFYUI_DEFAULT_PORT,
     pythonPath: COMFYUI_DEFAULT_PYTHON,

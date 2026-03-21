@@ -111,6 +111,9 @@ export function validateSettingsPartial(input: PartialSettings): PartialSettings
 
   if (partial.comfyui !== undefined) {
     const comfyui = { ...partial.comfyui };
+    if (comfyui.mode !== undefined && comfyui.mode !== 'managed' && comfyui.mode !== 'external') {
+      throw new Error('ComfyUI mode must be one of: managed, external');
+    }
     if (comfyui.path !== undefined) {
       assertString(comfyui.path, 'ComfyUI path');
       if (comfyui.path.trim().length > 0) {

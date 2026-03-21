@@ -4,7 +4,7 @@ import Card from '../components/Common/Card';
 import Button from '../components/Common/Button';
 import StatusIndicator from '../components/Common/StatusIndicator';
 
-type LogTab = 'llama.cpp' | 'stable-diffusion' | 'exo';
+type LogTab = 'llama.cpp' | 'stable-diffusion' | 'exo' | 'comfyui';
 
 function formatUptime(startedAt: number | null): string {
   if (!startedAt) return '';
@@ -28,7 +28,7 @@ const paramValueStyle: React.CSSProperties = {
 };
 
 const BackendsScreen: React.FC = () => {
-  const { backends, serverState, serverLogs, imageServerState, imageServerLogs, exoServerState, exoServerLogs, exoClusterState, connectExo, disconnectExo, detectBackends } = useApp();
+  const { backends, serverState, serverLogs, imageServerState, imageServerLogs, exoServerState, exoServerLogs, exoClusterState, connectExo, disconnectExo, detectBackends, videoServerState, videoServerLogs } = useApp();
   const [logTab, setLogTab] = useState<LogTab>('llama.cpp');
   const [, setTick] = useState(0);
 
@@ -40,7 +40,8 @@ const BackendsScreen: React.FC = () => {
   const [exoError, setExoError] = useState<string | null>(null);
 
   // Tick every 10s to update uptime display
-  const anyRunning = serverState.status === 'running' || imageServerState.status === 'running';
+  const isVideoActive = videoServerState.status !== 'stopped';
+  const anyRunning = serverState.status === 'running' || imageServerState.status === 'running' || videoServerState.status === 'running';
   useEffect(() => {
     if (!anyRunning) return;
     const id = setInterval(() => setTick((t) => t + 1), 10_000);
@@ -191,6 +192,53 @@ const BackendsScreen: React.FC = () => {
         )}
       </Card>
 
+      {/* ComfyUI (Video) */}
+      <Card
+        style={{
+          borderColor: isVideoActive ? '#fbbf24' : '#2a2a2a',
+          marginBottom: '1rem',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+              <span style={{ fontWeight: 700, fontSize: '1.05rem' }}>ComfyUI</span>
+              {isVideoActive && <StatusIndicator status={videoServerState.status} />}
+            </div>
+            <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: 8 }}>
+              Video generation engine (LTX-Video, Wan, HunyuanVideo)
+            </div>
+          </div>
+          <span
+            style={{
+              fontSize: '0.75rem',
+              padding: '3px 10px',
+              borderRadius: 6,
+              background: isVideoActive ? '#16532e' : '#2a2a2a',
+              color: isVideoActive ? '#4ade80' : '#666',
+              fontWeight: 500,
+            }}
+          >
+            {videoServerState.status === 'running' ? 'Running' : videoServerState.status === 'starting' ? 'Starting' : videoServerState.status === 'error' ? 'Error' : 'Stopped'}
+          </span>
+        </div>
+
+        {videoServerState.status === 'running' && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', marginTop: 10, padding: '8px 10px', background: '#1a1a1a', borderRadius: 6 }}>
+            <div><span style={paramLabelStyle}>Port: </span><span style={paramValueStyle}>{videoServerState.port}</span></div>
+            {videoServerState.startedAt && (
+              <div><span style={paramLabelStyle}>Uptime: </span><span style={paramValueStyle}>{formatUptime(videoServerState.startedAt)}</span></div>
+            )}
+          </div>
+        )}
+
+        {videoServerState.error && (
+          <div style={{ marginTop: 8, padding: '8px 12px', background: '#3b1a1a', borderRadius: 6, color: '#f87171', fontSize: '0.85rem' }}>
+            {videoServerState.error}
+          </div>
+        )}
+      </Card>
+
       {/* Exo Cluster */}
       <Card
         style={{
@@ -284,7 +332,7 @@ const BackendsScreen: React.FC = () => {
       {/* Server Logs */}
       <Card title="Server Logs">
         <div style={{ display: 'flex', gap: 0, marginBottom: 10 }}>
-          {(['llama.cpp', 'stable-diffusion', 'exo'] as const).map((tab, i, arr) => (
+          {(['llama.cpp', 'stable-diffusion', 'comfyui', 'exo'] as const).map((tab, i, arr) => (
             <button
               key={tab}
               onClick={() => setLogTab(tab)}
@@ -305,7 +353,7 @@ const BackendsScreen: React.FC = () => {
             </button>
           ))}
         </div>
-        <LogViewer logs={logTab === 'llama.cpp' ? serverLogs : logTab === 'stable-diffusion' ? imageServerLogs : exoServerLogs} />
+        <LogViewer logs={logTab === 'llama.cpp' ? serverLogs : logTab === 'stable-diffusion' ? imageServerLogs : logTab === 'comfyui' ? videoServerLogs : exoServerLogs} />
       </Card>
     </div>
   );

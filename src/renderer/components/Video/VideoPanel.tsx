@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../../contexts/AppContext';
 import Button from '../Common/Button';
 import StatusIndicator from '../Common/StatusIndicator';
+import { VIDEO_MODELS, DEFAULT_VIDEO_MODEL } from '../../../shared/video-models';
 import type { VideoGenerationResult } from '../../../shared/types';
 
 type VideoMode = 'txt2vid' | 'img2vid';
@@ -16,8 +17,28 @@ const VideoPanel: React.FC = () => {
   const [serverLoading, setServerLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
+  // Video model
+  const [videoModel, setVideoModel] = useState<string>(DEFAULT_VIDEO_MODEL);
+  const currentModelDef = VIDEO_MODELS.find((m) => m.id === videoModel) ?? VIDEO_MODELS[0];
+
   // Sub-mode
   const [mode, setMode] = useState<VideoMode>('txt2vid');
+
+  // When model changes, update mode if current mode isn't supported and reset defaults
+  const handleModelChange = useCallback((modelId: string) => {
+    const def = VIDEO_MODELS.find((m) => m.id === modelId);
+    if (!def) return;
+    setVideoModel(modelId);
+    if (!def.capabilities.includes(mode)) {
+      setMode(def.capabilities[0] as VideoMode);
+    }
+    setWidth(def.defaults.width);
+    setHeight(def.defaults.height);
+    setFrameCount(def.defaults.frameCount);
+    setFps(def.defaults.fps);
+    setSteps(def.defaults.steps);
+    setCfgScale(def.defaults.cfgScale);
+  }, [mode]);
 
   // Source images (img2vid, multiple)
   const [initImages, setInitImages] = useState<string[]>([]);
@@ -26,18 +47,24 @@ const VideoPanel: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
-  // Generation params
+  // Generation params (initialized from default model)
+  const defaultModel = VIDEO_MODELS.find((m) => m.id === DEFAULT_VIDEO_MODEL) ?? VIDEO_MODELS[0];
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
-  const [steps, setSteps] = useState(20);
-  const [cfgScale, setCfgScale] = useState(7.0);
-  const [width, setWidth] = useState(512);
-  const [height, setHeight] = useState(512);
-  const [frameCount, setFrameCount] = useState(16);
-  const [fps, setFps] = useState(8);
+  const [steps, setSteps] = useState(defaultModel.defaults.steps);
+  const [cfgScale, setCfgScale] = useState(defaultModel.defaults.cfgScale);
+  const [width, setWidth] = useState(defaultModel.defaults.width);
+  const [height, setHeight] = useState(defaultModel.defaults.height);
+  const [frameCount, setFrameCount] = useState(defaultModel.defaults.frameCount);
+  const [fps, setFps] = useState(defaultModel.defaults.fps);
   const [seed, setSeed] = useState('');
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+
+  // Upscale controls (always x2 — determined by the upscaler model)
+  const [upscaleEnabled, setUpscaleEnabled] = useState(false);
+  const [upscaleRefineSteps, setUpscaleRefineSteps] = useState(5);
+  const [upscaleRefineDenoise, setUpscaleRefineDenoise] = useState(0.4);
 
   // Progress
   const [progress, setProgress] = useState<{ value: number; max: number } | null>(null);
@@ -45,7 +72,14 @@ const VideoPanel: React.FC = () => {
   // Results
   const [videos, setVideos] = useState<GeneratedVideo[]>([]);
 
-  const comfyuiConfigured = !!settings?.comfyui?.path;
+  const { comfyuiInstallInfo, comfyuiInstallProgress, refreshComfyUIInstallInfo } = useApp();
+
+  const comfyuiMode = settings?.comfyui?.mode ?? 'managed';
+  const comfyuiConfigured = comfyuiMode === 'managed'
+    ? comfyuiInstallInfo?.installed === true
+    : !!settings?.comfyui?.path;
+
+  const [installing, setInstalling] = useState(false);
 
   useEffect(() => {
     if (serverState.status !== 'starting') {
@@ -130,6 +164,12 @@ const VideoPanel: React.FC = () => {
     setGenError(null);
     setProgress(null);
     try {
+      const upscaleConfig = upscaleEnabled && videoModel === 'ltx-video-2.3' ? {
+        enabled: true,
+        refineSteps: upscaleRefineSteps,
+        refineDenoise: upscaleRefineDenoise,
+      } : undefined;
+
       let result: VideoGenerationResult;
       if (mode === 'txt2vid') {
         result = await window.tasmania.video.generateTxt2Vid({
@@ -137,6 +177,8 @@ const VideoPanel: React.FC = () => {
           negativePrompt: negativePrompt.trim() || undefined,
           width, height, frameCount, fps, steps, cfgScale,
           seed: seed ? parseInt(seed) : undefined,
+          videoModel,
+          upscale: upscaleConfig,
         });
       } else {
         result = await window.tasmania.video.generateImg2Vid({
@@ -146,6 +188,8 @@ const VideoPanel: React.FC = () => {
           seed: seed ? parseInt(seed) : undefined,
           initImages,
           denoisingStrength,
+          videoModel,
+          upscale: upscaleConfig,
         });
       }
       setVideos((prev) => [{ ...result, prompt: trimmedPrompt }, ...prev]);
@@ -168,9 +212,57 @@ const VideoPanel: React.FC = () => {
           <span style={{ fontSize: '0.8rem', color: '#888' }}>ComfyUI</span>
         </div>
 
-        {!comfyuiConfigured && isStopped && (
+        {!comfyuiConfigured && isStopped && comfyuiMode === 'managed' && !installing && !(comfyuiInstallProgress?.status === 'installing') && (
+          <div style={{ padding: 12, background: '#1a1a2e', borderRadius: 8, border: '1px solid #2a2a4a', fontSize: '0.85rem' }}>
+            <div style={{ color: '#8888cc', marginBottom: 8 }}>
+              ComfyUI needs to be installed for video generation (~4GB).
+            </div>
+            <Button onClick={async () => {
+              setInstalling(true);
+              try {
+                await window.tasmania.comfyui.install();
+                refreshComfyUIInstallInfo();
+              } catch {
+                // Error shown via progress
+              }
+              setInstalling(false);
+            }}>
+              Install ComfyUI
+            </Button>
+          </div>
+        )}
+
+        {!comfyuiConfigured && isStopped && comfyuiMode === 'managed' && (installing || comfyuiInstallProgress?.status === 'installing') && (
+          <div style={{ padding: 12, background: '#1a1a2e', borderRadius: 8, border: '1px solid #2a2a4a', fontSize: '0.85rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#888', marginBottom: 6 }}>
+              <span>{comfyuiInstallProgress?.message ?? 'Installing...'}</span>
+              <span>Step {(comfyuiInstallProgress?.stepIndex ?? 0) + 1}/{comfyuiInstallProgress?.totalSteps ?? 9}</span>
+            </div>
+            <div style={{ background: '#252525', borderRadius: 4, height: 6, overflow: 'hidden', marginBottom: 8 }}>
+              <div style={{
+                background: '#6366f1', height: '100%', borderRadius: 4,
+                width: `${((((comfyuiInstallProgress?.stepIndex ?? 0) + (comfyuiInstallProgress?.stepProgress ?? 0) / 100) / (comfyuiInstallProgress?.totalSteps ?? 9)) * 100)}%`,
+                transition: 'width 0.3s ease',
+              }} />
+            </div>
+            <Button variant="danger" size="sm" onClick={() => {
+              window.tasmania.comfyui.cancelInstall();
+              setInstalling(false);
+            }}>
+              Cancel
+            </Button>
+          </div>
+        )}
+
+        {!comfyuiConfigured && isStopped && comfyuiMode === 'external' && (
           <div style={{ padding: '12px', background: '#1a1a2e', borderRadius: 8, border: '1px solid #2a2a4a', fontSize: '0.85rem', color: '#8888cc' }}>
             ComfyUI path not configured. Set it in <strong>Settings</strong> under "Video (ComfyUI)".
+          </div>
+        )}
+
+        {comfyuiInstallProgress?.status === 'error' && isStopped && (
+          <div style={{ padding: '8px 12px', background: '#3b1a1a', borderRadius: 6, color: '#f87171', fontSize: '0.85rem' }}>
+            Install error: {comfyuiInstallProgress.error}
           </div>
         )}
 
@@ -181,9 +273,17 @@ const VideoPanel: React.FC = () => {
         )}
 
         {!isStopped && (
-          <Button variant="danger" onClick={handleStop} disabled={serverLoading}>
-            {serverLoading ? 'Stopping...' : 'Stop ComfyUI'}
-          </Button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Button variant="danger" onClick={handleStop} disabled={serverLoading}>
+              {serverLoading ? 'Stopping...' : 'Stop ComfyUI'}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={async () => {
+              const dir = await window.tasmania.video.getOutputDir();
+              window.tasmania.openPath(dir);
+            }}>
+              Open Video Folder
+            </Button>
+          </div>
         )}
 
         {serverError && (
@@ -193,24 +293,50 @@ const VideoPanel: React.FC = () => {
         )}
       </div>
 
-      {/* Mode Toggle */}
-      <div style={{ display: 'flex', gap: 4, background: '#141414', borderRadius: 10, padding: 4, alignSelf: 'flex-start' }}>
-        {(['txt2vid', 'img2vid'] as VideoMode[]).map((m) => (
-          <button
-            key={m}
-            onClick={() => setMode(m)}
+      {/* Model Selector + Mode Toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <label style={{ ...labelStyle, marginBottom: 6 }}>Model:</label>
+          <select
+            value={videoModel}
+            onChange={(e) => handleModelChange(e.target.value)}
             style={{
-              padding: '8px 16px', borderRadius: 8, border: 'none',
-              background: mode === m ? '#333' : 'transparent',
-              color: mode === m ? '#fff' : '#888',
-              cursor: 'pointer', fontSize: '0.85rem',
-              fontWeight: mode === m ? 600 : 400, fontFamily: 'inherit',
-              transition: 'all 0.15s ease',
+              ...inputStyle,
+              width: 'auto',
+              minWidth: 200,
+              cursor: 'pointer',
+              appearance: 'auto',
             }}
           >
-            {m === 'txt2vid' ? 'Text to Video' : 'Image to Video'}
-          </button>
-        ))}
+            {VIDEO_MODELS.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label style={{ ...labelStyle, marginBottom: 6 }}>Mode:</label>
+          <div style={{ display: 'flex', gap: 4, background: '#141414', borderRadius: 10, padding: 4 }}>
+            {(['txt2vid', 'img2vid'] as VideoMode[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                disabled={!currentModelDef.capabilities.includes(m)}
+                style={{
+                  padding: '8px 16px', borderRadius: 8, border: 'none',
+                  background: mode === m ? '#333' : 'transparent',
+                  color: !currentModelDef.capabilities.includes(m) ? '#444' : mode === m ? '#fff' : '#888',
+                  cursor: currentModelDef.capabilities.includes(m) ? 'pointer' : 'not-allowed',
+                  fontSize: '0.85rem',
+                  fontWeight: mode === m ? 600 : 400, fontFamily: 'inherit',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {m === 'txt2vid' ? 'Text to Video' : 'Image to Video'}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Source Images (img2vid only) */}
@@ -329,6 +455,47 @@ const VideoPanel: React.FC = () => {
           </div>
         </div>
 
+        {/* Latent Upscale x2 (LTX 2.3 only) */}
+        {videoModel === 'ltx-video-2.3' && (
+          <div style={{ marginBottom: 12, padding: 12, background: '#141414', borderRadius: 8, border: '1px solid #252525' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: upscaleEnabled ? 10 : 0 }}>
+              <input
+                type="checkbox"
+                checked={upscaleEnabled}
+                onChange={(e) => setUpscaleEnabled(e.target.checked)}
+              />
+              <span style={{ fontSize: '0.85rem', color: '#ccc', fontWeight: 500 }}>Latent Upscale x2</span>
+              <span style={{ fontSize: '0.75rem', color: '#666' }}>
+                ({upscaleEnabled ? `${width}x${height} → ${width * 2}x${height * 2}` : 'off'})
+              </span>
+            </label>
+            {upscaleEnabled && (
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div>
+                  <label style={labelStyle}>Refine Steps:</label>
+                  <input
+                    type="number"
+                    min={3} max={8}
+                    value={upscaleRefineSteps}
+                    onChange={(e) => setUpscaleRefineSteps(Math.min(8, Math.max(3, parseInt(e.target.value) || 5)))}
+                    style={{ ...inputStyle, width: 70 }}
+                  />
+                </div>
+                <div style={{ flex: 1, minWidth: 150 }}>
+                  <label style={labelStyle}>Refine Denoise: {upscaleRefineDenoise.toFixed(2)}</label>
+                  <input
+                    type="range"
+                    min="0.2" max="0.6" step="0.05"
+                    value={upscaleRefineDenoise}
+                    onChange={(e) => setUpscaleRefineDenoise(parseFloat(e.target.value))}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Button onClick={handleGenerate} disabled={!isRunning || !prompt.trim() || generating || (mode === 'img2vid' && initImages.length === 0)}>
             {generating ? 'Generating...' : 'Generate'}
@@ -359,8 +526,10 @@ const VideoPanel: React.FC = () => {
         )}
 
         {genError && (
-          <div style={{ marginTop: 8, padding: '8px 12px', background: '#3b1a1a', borderRadius: 6, color: '#f87171', fontSize: '0.85rem' }}>
-            {genError}
+          <div style={{ marginTop: 8, padding: '8px 12px', background: '#3b1a1a', borderRadius: 6, color: '#f87171', fontSize: '0.85rem', whiteSpace: 'pre-wrap' }}>
+            {genError.startsWith('MISSING_UPSCALE_MODELS:')
+              ? genError.replace('MISSING_UPSCALE_MODELS: ', '')
+              : genError}
           </div>
         )}
       </div>
@@ -384,7 +553,7 @@ const VideoPanel: React.FC = () => {
               </button>
               {vid.filePath ? (
                 <video
-                  src={`file://${vid.filePath}`}
+                  src={`tasmania-file://${vid.filePath}`}
                   controls
                   loop
                   style={{ width: '100%', maxWidth: vid.fps * vid.frameCount > 0 ? undefined : 512, borderRadius: 8, display: 'block', marginBottom: 8 }}
@@ -401,6 +570,11 @@ const VideoPanel: React.FC = () => {
                   <span style={{ marginLeft: 12 }}>{vid.fps} fps</span>
                   <span style={{ marginLeft: 12 }}>{vid.durationSeconds.toFixed(1)}s</span>
                   <span style={{ marginLeft: 12 }}>{(vid.timingMs / 1000).toFixed(1)}s gen time</span>
+                  {vid.upscaled && vid.outputWidth && vid.outputHeight && (
+                    <span style={{ marginLeft: 12, color: '#4ade80', fontWeight: 500 }}>
+                      Upscaled {vid.outputWidth}x{vid.outputHeight}
+                    </span>
+                  )}
                 </div>
                 {vid.filePath && (
                   <Button size="sm" variant="secondary" onClick={() => window.tasmania.openPath(vid.filePath)}>

@@ -4,7 +4,7 @@ import Card from '../components/Common/Card';
 import Button from '../components/Common/Button';
 
 const SettingsScreen: React.FC = () => {
-  const { settings, updateSettings, systemInfo, updateInfo, checkForUpdates } = useApp();
+  const { settings, updateSettings, systemInfo, updateInfo, checkForUpdates, comfyuiInstallInfo, comfyuiInstallProgress, refreshComfyUIInstallInfo } = useApp();
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<string | null>(null);
 
@@ -21,10 +21,11 @@ const SettingsScreen: React.FC = () => {
   const [sdError, setSDError] = useState<string | null>(null);
 
   // Local draft state for ComfyUI
-  const [draftComfyui, setDraftComfyui] = useState({ path: '', port: 8188, pythonPath: 'python3' });
+  const [draftComfyui, setDraftComfyui] = useState({ mode: 'managed' as 'managed' | 'external', path: '', port: 8188, pythonPath: 'python3' });
   const [comfyuiDirty, setComfyuiDirty] = useState(false);
   const [comfyuiSaved, setComfyuiSaved] = useState(false);
   const [comfyuiError, setComfyuiError] = useState<string | null>(null);
+  const [comfyuiInstalling, setComfyuiInstalling] = useState(false);
 
   // Local draft state for Exo
   const [draftExo, setDraftExo] = useState({ host: '127.0.0.1', port: 52415, autoConnect: false });
@@ -48,6 +49,7 @@ const SettingsScreen: React.FC = () => {
         defaultHeight: settings.stableDiffusion?.defaultHeight ?? 512,
       });
       setDraftComfyui({
+        mode: settings.comfyui?.mode ?? 'managed',
         path: settings.comfyui?.path ?? '',
         port: settings.comfyui?.port ?? 8188,
         pythonPath: settings.comfyui?.pythonPath ?? 'python3',
@@ -406,53 +408,173 @@ const SettingsScreen: React.FC = () => {
         {/* Video (ComfyUI) — full width */}
         <Card title="Video (ComfyUI)" style={{ gridColumn: '1 / -1' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {/* Mode toggle */}
             <div>
-              <label style={labelStyle}>ComfyUI path:</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  type="text"
-                  value={draftComfyui.path}
-                  onChange={(e) => {
-                    setDraftComfyui((d) => ({ ...d, path: e.target.value }));
-                    setComfyuiDirty(true);
-                  }}
-                  placeholder="/path/to/ComfyUI"
-                  style={{ ...inputStyle, fontFamily: 'monospace' }}
-                />
-                <Button variant="secondary" size="sm" onClick={handleSelectComfyuiDir}>
-                  Browse
-                </Button>
-              </div>
-              <div style={{ fontSize: '0.75rem', color: '#555', marginTop: 4 }}>
-                Directory containing ComfyUI's main.py
+              <label style={labelStyle}>Mode:</label>
+              <div style={{ display: 'flex', gap: 4, background: '#141414', borderRadius: 10, padding: 4, alignSelf: 'flex-start' }}>
+                {(['managed', 'external'] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => {
+                      setDraftComfyui((d) => ({ ...d, mode: m }));
+                      setComfyuiDirty(true);
+                    }}
+                    style={{
+                      padding: '6px 14px', borderRadius: 8, border: 'none',
+                      background: draftComfyui.mode === m ? '#333' : 'transparent',
+                      color: draftComfyui.mode === m ? '#fff' : '#888',
+                      cursor: 'pointer', fontSize: '0.8rem',
+                      fontWeight: draftComfyui.mode === m ? 600 : 400, fontFamily: 'inherit',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    {m === 'managed' ? 'Managed (recommended)' : 'External'}
+                  </button>
+                ))}
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 16 }}>
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>Port:</label>
-                <input
-                  type="number"
-                  value={draftComfyui.port}
-                  onChange={(e) => {
-                    setDraftComfyui((d) => ({ ...d, port: parseInt(e.target.value) || 0 }));
-                    setComfyuiDirty(true);
-                  }}
-                  style={inputStyle}
-                />
+            {/* Managed mode */}
+            {draftComfyui.mode === 'managed' && (
+              <>
+                <div style={{ padding: 12, background: '#1a1a2e', borderRadius: 8, border: '1px solid #2a2a4a', fontSize: '0.85rem', color: '#8888cc' }}>
+                  Tasmania will automatically install and manage ComfyUI with all required dependencies (~4GB disk space).
+                </div>
+
+                {comfyuiInstallInfo?.installed ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80' }} />
+                    <span style={{ fontSize: '0.85rem', color: '#4ade80' }}>
+                      Installed {comfyuiInstallInfo.version ? `(${comfyuiInstallInfo.version})` : ''}
+                    </span>
+                    <Button variant="danger" size="sm" onClick={async () => {
+                      if (confirm('Remove managed ComfyUI installation? This will delete ~4GB of data.')) {
+                        await window.tasmania.comfyui.uninstall();
+                        refreshComfyUIInstallInfo();
+                      }
+                    }}>
+                      Uninstall
+                    </Button>
+                  </div>
+                ) : comfyuiInstalling || (comfyuiInstallProgress?.status === 'installing') ? (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#888', marginBottom: 6 }}>
+                      <span>{comfyuiInstallProgress?.message ?? 'Installing...'}</span>
+                      <span>Step {(comfyuiInstallProgress?.stepIndex ?? 0) + 1}/{comfyuiInstallProgress?.totalSteps ?? 9}</span>
+                    </div>
+                    <div style={{ background: '#252525', borderRadius: 4, height: 6, overflow: 'hidden', marginBottom: 8 }}>
+                      <div style={{
+                        background: '#6366f1', height: '100%', borderRadius: 4,
+                        width: `${((((comfyuiInstallProgress?.stepIndex ?? 0) + (comfyuiInstallProgress?.stepProgress ?? 0) / 100) / (comfyuiInstallProgress?.totalSteps ?? 9)) * 100)}%`,
+                        transition: 'width 0.3s ease',
+                      }} />
+                    </div>
+                    <Button variant="danger" size="sm" onClick={() => {
+                      window.tasmania.comfyui.cancelInstall();
+                      setComfyuiInstalling(false);
+                    }}>
+                      Cancel Install
+                    </Button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#666' }} />
+                    <span style={{ fontSize: '0.85rem', color: '#888' }}>Not installed</span>
+                    <Button onClick={async () => {
+                      setComfyuiInstalling(true);
+                      setComfyuiError(null);
+                      try {
+                        await window.tasmania.comfyui.install();
+                        refreshComfyUIInstallInfo();
+                      } catch (err) {
+                        setComfyuiError(err instanceof Error ? err.message : String(err));
+                      }
+                      setComfyuiInstalling(false);
+                    }}>
+                      Install ComfyUI
+                    </Button>
+                  </div>
+                )}
+
+                {comfyuiInstallProgress?.status === 'error' && (
+                  <div style={{ padding: '8px 12px', background: '#3b1a1a', borderRadius: 6, color: '#f87171', fontSize: '0.85rem' }}>
+                    {comfyuiInstallProgress.error}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* External mode */}
+            {draftComfyui.mode === 'external' && (
+              <>
+                <div>
+                  <label style={labelStyle}>ComfyUI path:</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      type="text"
+                      value={draftComfyui.path}
+                      onChange={(e) => {
+                        setDraftComfyui((d) => ({ ...d, path: e.target.value }));
+                        setComfyuiDirty(true);
+                      }}
+                      placeholder="/path/to/ComfyUI"
+                      style={{ ...inputStyle, fontFamily: 'monospace' }}
+                    />
+                    <Button variant="secondary" size="sm" onClick={handleSelectComfyuiDir}>
+                      Browse
+                    </Button>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#555', marginTop: 4 }}>
+                    Directory containing ComfyUI's main.py
+                  </div>
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Python path:</label>
+                  <input
+                    type="text"
+                    value={draftComfyui.pythonPath}
+                    onChange={(e) => {
+                      setDraftComfyui((d) => ({ ...d, pythonPath: e.target.value }));
+                      setComfyuiDirty(true);
+                    }}
+                    placeholder="python3"
+                    style={{ ...inputStyle, fontFamily: 'monospace' }}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Port (both modes) */}
+            <div style={{ maxWidth: 200 }}>
+              <label style={labelStyle}>Port:</label>
+              <input
+                type="number"
+                value={draftComfyui.port}
+                onChange={(e) => {
+                  setDraftComfyui((d) => ({ ...d, port: parseInt(e.target.value) || 0 }));
+                  setComfyuiDirty(true);
+                }}
+                style={inputStyle}
+              />
+            </div>
+
+            {/* Video models folder */}
+            <div>
+              <label style={labelStyle}>Video models folder:</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <code style={{ fontSize: '0.8rem', color: '#888', background: '#1a1a1a', padding: '6px 10px', borderRadius: 6, border: '1px solid #2a2a2a' }}>
+                  ~/Library/Application Support/Tasmania/models/video/
+                </code>
+                <Button variant="secondary" size="sm" onClick={async () => {
+                  const dir = await window.tasmania.getVideoModelsDir();
+                  window.tasmania.openPath(dir);
+                }}>
+                  Open Folder
+                </Button>
               </div>
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>Python path:</label>
-                <input
-                  type="text"
-                  value={draftComfyui.pythonPath}
-                  onChange={(e) => {
-                    setDraftComfyui((d) => ({ ...d, pythonPath: e.target.value }));
-                    setComfyuiDirty(true);
-                  }}
-                  placeholder="python3"
-                  style={{ ...inputStyle, fontFamily: 'monospace' }}
-                />
+              <div style={{ fontSize: '0.75rem', color: '#555', marginTop: 4 }}>
+                Place model files here. Subdirectories: <strong>diffusion_models/</strong>, <strong>vae/</strong>, <strong>clip/</strong>, <strong>checkpoints/</strong>
               </div>
             </div>
 

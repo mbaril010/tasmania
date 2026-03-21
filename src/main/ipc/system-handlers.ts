@@ -1,8 +1,10 @@
 import { ipcMain, shell, dialog, app } from 'electron';
 import { execSync } from 'node:child_process';
+import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { IPC } from '../../shared/ipc-channels';
+import { VIDEO_MODELS_DIR } from '../../shared/constants';
 import { assertPathInsideAny } from '../security/path-utils';
 import { validateSettingsPartial } from '../security/settings-schema';
 import { getSettings, setSettings, getModelsDir } from '../store/AppStore';
@@ -30,6 +32,17 @@ function getAvailableMemory(): number {
   return os.freemem();
 }
 
+/** Directories the app is allowed to serve / open files from. */
+export function getAllowedDirs(): string[] {
+  const settings = getSettings();
+  return [
+    path.resolve(getModelsDir()),
+    path.resolve(app.getPath('logs')),
+    path.resolve(app.getPath('userData')),
+    path.resolve(settings.imageOutput.outputDir),
+  ];
+}
+
 export function registerSystemHandlers() {
   ipcMain.handle(IPC.SYSTEM_INFO, () => {
     return {
@@ -45,16 +58,8 @@ export function registerSystemHandlers() {
       throw new Error('Path is required');
     }
 
-    // Only allow opening paths within known safe directories
-    const settings = getSettings();
-    const allowedDirs = [
-      path.resolve(getModelsDir()),
-      path.resolve(app.getPath('logs')),
-      path.resolve(app.getPath('userData')),
-      path.resolve(settings.imageOutput.outputDir),
-    ];
     const resolved = assertPathInsideAny(
-      allowedDirs,
+      getAllowedDirs(),
       filePath,
       'Opening this path is not allowed',
     );
@@ -81,6 +86,12 @@ export function registerSystemHandlers() {
       title: 'Select Models Directory',
     });
     return result.canceled ? null : result.filePaths[0];
+  });
+
+  ipcMain.handle(IPC.SYSTEM_VIDEO_MODELS_DIR, async () => {
+    const subdirs = ['diffusion_models', 'vae', 'clip', 'checkpoints', 'unet'];
+    await Promise.all(subdirs.map((d) => fs.mkdir(path.join(VIDEO_MODELS_DIR, d), { recursive: true })));
+    return VIDEO_MODELS_DIR;
   });
 
   ipcMain.handle(IPC.SETTINGS_GET, () => {

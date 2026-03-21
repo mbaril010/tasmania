@@ -1,16 +1,24 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, protocol, net } from 'electron';
 import path from 'node:path';
 import { registerBackendHandlers, shutdownBackends } from './ipc/backend-handlers';
 import { registerModelHandlers, getModelService } from './ipc/model-handlers';
-import { registerSystemHandlers } from './ipc/system-handlers';
+import { registerSystemHandlers, getAllowedDirs } from './ipc/system-handlers';
 import { registerUpdateHandlers, checkForUpdatesOnLaunch } from './ipc/update-handlers';
 import { registerTerminalHandlers, shutdownTerminal } from './ipc/terminal-handlers';
 import { registerImageHandlers, shutdownImageServer } from './ipc/image-handlers';
 import { registerVideoHandlers, shutdownVideoServer } from './ipc/video-handlers';
 import { registerExoHandlers, shutdownExo } from './ipc/exo-handlers';
 import { registerWebHandlers } from './ipc/web-handlers';
+import { registerComfyUIHandlers } from './ipc/comfyui-handlers';
 import { startControlApi, stopControlApi } from './mcp/control-api';
 import { getSettings } from './store/AppStore';
+import { isPathInside } from './security/path-utils';
+
+// Must be called before app.whenReady()
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'tasmania-file',
+  privileges: { standard: false, secure: true, supportFetchAPI: true, stream: true },
+}]);
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -61,8 +69,20 @@ registerImageHandlers();
 registerVideoHandlers();
 registerExoHandlers();
 registerWebHandlers();
+registerComfyUIHandlers();
 
 app.whenReady().then(async () => {
+  // Serve local files from allowed directories via tasmania-file:// protocol
+  protocol.handle('tasmania-file', (request) => {
+    const filePath = decodeURIComponent(new URL(request.url).pathname);
+    const resolved = path.resolve(filePath);
+    const allowed = getAllowedDirs();
+    if (!allowed.some((dir) => isPathInside(dir, resolved))) {
+      return new Response('Forbidden', { status: 403 });
+    }
+    return net.fetch(`file://${resolved}`);
+  });
+
   // Migrate models from flat directory to category subdirectories
   getModelService().migrateModelsDir().catch((err) => {
     console.error('[Tasmania] Model migration error:', err);

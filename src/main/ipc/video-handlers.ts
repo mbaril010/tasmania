@@ -4,11 +4,77 @@ import fs from 'node:fs/promises';
 import { IPC } from '../../shared/ipc-channels';
 import { ComfyUIBackend } from '../services/ComfyUIBackend';
 import { getSettings } from '../store/AppStore';
-import type { VideoGenerationRequest, Img2VidGenerationRequest, ServerOptions } from '../../shared/types';
+import { getComfyUIInstaller } from './comfyui-handlers';
+import { DEFAULT_VIDEO_MODEL, getUpscalerModelFilename, getDistilledLoraFilename } from '../../shared/video-models';
+import { VIDEO_MODELS_DIR } from '../../shared/constants';
+import type { VideoGenerationRequest, Img2VidGenerationRequest, VideoUpscaleConfig, ServerOptions } from '../../shared/types';
 
-// Load workflow templates
-import txt2vidWorkflow from '../services/comfyui-workflows/txt2vid-animatediff.json';
-import img2vidWorkflow from '../services/comfyui-workflows/img2vid-svd.json';
+// Load workflow templates – keyed by model id
+import txt2vidLtx from '../services/comfyui-workflows/txt2vid-ltx-video.json';
+import img2vidLtx from '../services/comfyui-workflows/img2vid-ltx-video.json';
+import txt2vidLtx20 from '../services/comfyui-workflows/txt2vid-ltx-video-2.0.json';
+import img2vidLtx20 from '../services/comfyui-workflows/img2vid-ltx-video-2.0.json';
+import txt2vidLtxUpscale from '../services/comfyui-workflows/txt2vid-ltx-video-upscale.json';
+import img2vidLtxUpscale from '../services/comfyui-workflows/img2vid-ltx-video-upscale.json';
+
+type WorkflowMap = Record<string, Record<string, unknown> | undefined>;
+
+const txt2vidWorkflows: WorkflowMap = {
+  'ltx-video-2.3': txt2vidLtx,
+  'ltx-video-2.0': txt2vidLtx20,
+};
+
+const img2vidWorkflows: WorkflowMap = {
+  'ltx-video-2.3': img2vidLtx,
+  'ltx-video-2.0': img2vidLtx20,
+};
+
+const txt2vidUpscaleWorkflows: WorkflowMap = {
+  'ltx-video-2.3': txt2vidLtxUpscale,
+};
+
+const img2vidUpscaleWorkflows: WorkflowMap = {
+  'ltx-video-2.3': img2vidLtxUpscale,
+};
+
+function getTxt2VidWorkflow(modelId: string, upscale?: VideoUpscaleConfig): Record<string, unknown> {
+  if (upscale?.enabled) {
+    const wf = txt2vidUpscaleWorkflows[modelId];
+    if (!wf) throw new Error(`No txt2vid upscale workflow for model "${modelId}"`);
+    return wf;
+  }
+  const wf = txt2vidWorkflows[modelId];
+  if (!wf) throw new Error(`No txt2vid workflow for model "${modelId}"`);
+  return wf;
+}
+
+function getImg2VidWorkflow(modelId: string, upscale?: VideoUpscaleConfig): Record<string, unknown> {
+  if (upscale?.enabled) {
+    const wf = img2vidUpscaleWorkflows[modelId];
+    if (!wf) throw new Error(`No img2vid upscale workflow for model "${modelId}"`);
+    return wf;
+  }
+  const wf = img2vidWorkflows[modelId];
+  if (!wf) throw new Error(`No img2vid workflow for model "${modelId}"`);
+  return wf;
+}
+
+/** Check that upscaler model files exist; throw descriptive error if missing */
+async function validateUpscaleModels(): Promise<void> {
+  const upscalerFile = getUpscalerModelFilename();
+  const loraFile = getDistilledLoraFilename();
+
+  const upscalerPath = path.join(VIDEO_MODELS_DIR, 'latent_upscale_models', upscalerFile);
+  const loraPath = path.join(VIDEO_MODELS_DIR, 'loras', loraFile);
+
+  const missing: string[] = [];
+  try { await fs.access(upscalerPath); } catch { missing.push(upscalerPath); }
+  try { await fs.access(loraPath); } catch { missing.push(loraPath); }
+
+  if (missing.length > 0) {
+    throw new Error(`MISSING_UPSCALE_MODELS: The following model files are required for latent upscaling but were not found:\n${missing.join('\n')}\n\nDownload them from Lightricks/LTX-Video on HuggingFace and place them in the paths above.`);
+  }
+}
 
 const backend = new ComfyUIBackend();
 
@@ -47,10 +113,29 @@ export function registerVideoHandlers() {
 
   ipcMain.handle(IPC.VIDEO_START, async (_event, options?: Partial<ServerOptions>) => {
     const settings = getSettings();
+    const mode = settings.comfyui.mode ?? 'managed';
+
+    let comfyuiPath: string;
+    let pythonPath: string;
+
+    if (mode === 'managed') {
+      const installer = getComfyUIInstaller();
+      const info = await installer.getInstallInfo('managed');
+      if (!info.installed) {
+        throw new Error('ComfyUI not installed. Install it from Settings or the Video tab.');
+      }
+      const managed = installer.getManagedPaths();
+      comfyuiPath = managed.comfyuiPath;
+      pythonPath = managed.pythonPath;
+    } else {
+      comfyuiPath = settings.comfyui.path;
+      pythonPath = settings.comfyui.pythonPath;
+    }
+
     backend.configure(
-      settings.comfyui.path,
+      comfyuiPath,
       options?.port ?? settings.comfyui.port,
-      settings.comfyui.pythonPath,
+      pythonPath,
     );
 
     const mergedOptions: ServerOptions = {
@@ -91,8 +176,8 @@ export function registerVideoHandlers() {
     if (!Number.isInteger(params.height) || params.height < 64 || params.height > 2048) {
       throw new Error('Height must be 64-2048');
     }
-    if (!Number.isInteger(params.frameCount) || params.frameCount < 1 || params.frameCount > 120) {
-      throw new Error('Frame count must be 1-120');
+    if (!Number.isInteger(params.frameCount) || params.frameCount < 1) {
+      throw new Error('Frame count must be at least 1');
     }
     if (!Number.isInteger(params.fps) || params.fps < 1 || params.fps > 60) {
       throw new Error('FPS must be 1-60');
@@ -112,7 +197,15 @@ export function registerVideoHandlers() {
     const startTime = Date.now();
     const seed = params.seed ?? Math.floor(Math.random() * 2147483647);
 
-    const workflow = fillTemplate(txt2vidWorkflow, {
+    const modelId = params.videoModel || DEFAULT_VIDEO_MODEL;
+    const upscale = params.upscale;
+    const useUpscale = upscale?.enabled && modelId === 'ltx-video-2.3';
+
+    if (useUpscale) {
+      await validateUpscaleModels();
+    }
+
+    const templateVars: Record<string, string | number> = {
       prompt: params.prompt,
       negative_prompt: params.negativePrompt || '',
       width: params.width,
@@ -122,7 +215,17 @@ export function registerVideoHandlers() {
       steps: params.steps,
       cfg_scale: params.cfgScale,
       seed,
-    });
+    };
+
+    if (useUpscale) {
+      templateVars.upscale_model_name = getUpscalerModelFilename();
+      templateVars.refine_steps = upscale.refineSteps;
+      templateVars.refine_denoise = upscale.refineDenoise;
+      templateVars.refine_seed = Math.floor(Math.random() * 2147483647);
+      templateVars.lora_name = getDistilledLoraFilename();
+    }
+
+    const workflow = fillTemplate(getTxt2VidWorkflow(modelId, upscale), templateVars);
 
     const promptId = await backend.queuePrompt(workflow);
     const history = await backend.waitForCompletion(promptId);
@@ -131,13 +234,17 @@ export function registerVideoHandlers() {
     const outputDir = getOutputDir();
     await fs.mkdir(outputDir, { recursive: true });
 
-    const outputs = history.outputs as Record<string, { videos?: Array<{ filename: string; subfolder: string }> }> | undefined;
+    const outputs = history.outputs as Record<string, {
+      videos?: Array<{ filename: string; subfolder: string }>;
+      gifs?: Array<{ filename: string; subfolder: string }>;
+    }> | undefined;
     let videoFilePath = '';
 
     if (outputs) {
       for (const nodeOutput of Object.values(outputs)) {
-        if (nodeOutput.videos && nodeOutput.videos.length > 0) {
-          const video = nodeOutput.videos[0];
+        const videoList = nodeOutput.videos ?? nodeOutput.gifs;
+        if (videoList && videoList.length > 0) {
+          const video = videoList[0];
           const comfyOutputDir = path.join(backend.getServerState().modelPath || '', 'output', video.subfolder);
           const srcPath = path.join(comfyOutputDir, video.filename);
           const destPath = path.join(outputDir, `txt2vid_${Date.now()}_${video.filename}`);
@@ -161,7 +268,18 @@ export function registerVideoHandlers() {
       fps: params.fps,
       durationSeconds,
       timingMs,
+      ...(useUpscale ? {
+        upscaled: true,
+        outputWidth: params.width * 2,
+        outputHeight: params.height * 2,
+      } : {}),
     };
+  });
+
+  ipcMain.handle(IPC.VIDEO_GET_OUTPUT_DIR, async () => {
+    const dir = getOutputDir();
+    await fs.mkdir(dir, { recursive: true });
+    return dir;
   });
 
   ipcMain.handle(IPC.VIDEO_GENERATE_IMG2VID, async (_event, params: Img2VidGenerationRequest) => {
@@ -180,8 +298,8 @@ export function registerVideoHandlers() {
     if (!Number.isInteger(params.height) || params.height < 64 || params.height > 2048) {
       throw new Error('Height must be 64-2048');
     }
-    if (!Number.isInteger(params.frameCount) || params.frameCount < 1 || params.frameCount > 120) {
-      throw new Error('Frame count must be 1-120');
+    if (!Number.isInteger(params.frameCount) || params.frameCount < 1) {
+      throw new Error('Frame count must be at least 1');
     }
     if (!Number.isInteger(params.fps) || params.fps < 1 || params.fps > 60) {
       throw new Error('FPS must be 1-60');
@@ -210,7 +328,15 @@ export function registerVideoHandlers() {
     );
     const uploaded = uploadedImages[0];
 
-    const workflow = fillTemplate(img2vidWorkflow, {
+    const modelId = params.videoModel || DEFAULT_VIDEO_MODEL;
+    const upscale = params.upscale;
+    const useUpscale = upscale?.enabled && modelId === 'ltx-video-2.3';
+
+    if (useUpscale) {
+      await validateUpscaleModels();
+    }
+
+    const templateVars: Record<string, string | number> = {
       prompt: params.prompt,
       negative_prompt: params.negativePrompt || '',
       width: params.width,
@@ -222,7 +348,17 @@ export function registerVideoHandlers() {
       seed,
       denoising_strength: params.denoisingStrength,
       init_image_name: uploaded.name,
-    });
+    };
+
+    if (useUpscale) {
+      templateVars.upscale_model_name = getUpscalerModelFilename();
+      templateVars.refine_steps = upscale.refineSteps;
+      templateVars.refine_denoise = upscale.refineDenoise;
+      templateVars.refine_seed = Math.floor(Math.random() * 2147483647);
+      templateVars.lora_name = getDistilledLoraFilename();
+    }
+
+    const workflow = fillTemplate(getImg2VidWorkflow(modelId, upscale), templateVars);
 
     const promptId = await backend.queuePrompt(workflow);
     const history = await backend.waitForCompletion(promptId);
@@ -230,13 +366,17 @@ export function registerVideoHandlers() {
     const outputDir = getOutputDir();
     await fs.mkdir(outputDir, { recursive: true });
 
-    const outputs = history.outputs as Record<string, { videos?: Array<{ filename: string; subfolder: string }> }> | undefined;
+    const outputs = history.outputs as Record<string, {
+      videos?: Array<{ filename: string; subfolder: string }>;
+      gifs?: Array<{ filename: string; subfolder: string }>;
+    }> | undefined;
     let videoFilePath = '';
 
     if (outputs) {
       for (const nodeOutput of Object.values(outputs)) {
-        if (nodeOutput.videos && nodeOutput.videos.length > 0) {
-          const video = nodeOutput.videos[0];
+        const videoList = nodeOutput.videos ?? nodeOutput.gifs;
+        if (videoList && videoList.length > 0) {
+          const video = videoList[0];
           const comfyOutputDir = path.join(backend.getServerState().modelPath || '', 'output', video.subfolder);
           const srcPath = path.join(comfyOutputDir, video.filename);
           const destPath = path.join(outputDir, `img2vid_${Date.now()}_${video.filename}`);
@@ -260,6 +400,11 @@ export function registerVideoHandlers() {
       fps: params.fps,
       durationSeconds,
       timingMs,
+      ...(useUpscale ? {
+        upscaled: true,
+        outputWidth: params.width * 2,
+        outputHeight: params.height * 2,
+      } : {}),
     };
   });
 }
